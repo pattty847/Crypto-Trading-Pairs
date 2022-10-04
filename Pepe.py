@@ -3,12 +3,13 @@ import statsmodels
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import coint, adfuller
 
+import numpy as np
 import csv
 import ccxt
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from Scrape_Binance import Scrape; sns.set(style="whitegrid")
+from Scrape_Binance import Scrape
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -19,7 +20,7 @@ class Pepe():
     def __init__(self) -> None:
         pass
 
-    def plot_ohlcv_matplotlib(self, df, orders):
+    def plot_ohlcv_matplotlib(self, df):
         df.columns = ['Time', 'Open', 'High', 'Low', 'Close', 'Volume']
         df['Time'] = pd.to_datetime(df['Time'], unit='ms')
         #create figure
@@ -70,7 +71,7 @@ class Pepe():
         size = orders['size'] * 0.5
 
         fig.add_trace(go.Scatter(x=date, y=orders['price'], mode="markers", marker = dict(
-                # color = 'green' if orders['color'] == 'buy' else 'red',
+                color = ['green' if s == 'buy' else 'red' for s in orders['side']],
                 size=size
             )
         ))
@@ -82,22 +83,20 @@ class Pepe():
         score, pvalue, _ = coint(x, y)
         return pvalue
 
+    def zscore(self, series):
+        return (series - series.mean()) / np.std(series)
 
-    def plot_with_plotly(self):
+
+    def plot_ohlcv_orders_plotly(self, candles, orders):
         pepe = Pepe()
 
-        df = pd.read_csv('CSV/btcusdt-orders.csv')
-        candles = pd.read_csv('CSV/btcusdt-candles.csv')
-
-        grouped_multiple = df.groupby(['timestamp']).agg({'size': ['sum'], 'price': ['mean'], 'side':['first']})
+        grouped_multiple = orders.groupby(['timestamp']).agg({'size': ['sum'], 'price': ['mean'], 'side':['first']})
         grouped_multiple.columns = ['size', 'price', 'side']
         orders = grouped_multiple.reset_index()
 
         orders = orders.loc[orders['size'] > 10]
 
-        # pepe.plot_orders(grouped_multiple)
         pepe.plot_ohlcv_plotly(candles, orders)
-        # pepe.plot_ohlcv_matplotlib(df, grouped_multiple)
 
     
     def get_coinintegration(self, since, exchange, timeframe, symbol):
@@ -108,13 +107,92 @@ class Pepe():
         return pepe.cointegration(coin1.close, coin2.close)
 
 pepe = Pepe()
-since = '2022-09-28T00:00:00Z'
+scrape = Scrape()
+since = '2022-09-01T00:00:00Z'
 exchange = 'binance'
-timeframe = '1h'
-symbols = ['XRP/USDT', 'BTC/USDT']
-print(pepe.get_coinintegration(since, exchange, timeframe, symbols))
+timeframe = '1m'
+symbols = ['BTC/USDT', 'ETH/USDT']
+#print(pepe.get_coinintegration(since, exchange, timeframe, symbols))
 
-btc = pd.read_csv('btcusdt-candles-1h.csv')
-xrp = pd.read_csv('xrpusdt-candles-1h.csv')
+#coin1 = scrape.scrape_candles_to_df_and_return(exchange_id=exchange, max_retries = 3, symbol=symbols[0], timeframe=timeframe, since = since, limit=1000)
+#coin2 = scrape.scrape_candles_to_df_and_return(exchange_id=exchange, max_retries = 3, symbol=symbols[1], timeframe=timeframe, since = since, limit=1000)
 
-pepe.plot_ohlcv_plotly()
+
+coin1 = pd.read_csv('CSV\\btcusdt-candles-1m.csv')
+coin2 = pd.read_csv('CSV\\ethusdt-candles-1m.csv')
+columns = ['time', 'open', 'high', 'low', 'close', 'volume']
+coin1.columns = columns
+coin2.columns = columns
+print(pepe.cointegration(coin1.close, coin2.close))
+
+# plt.figure(figsize=(12,6))
+# (coin1.close - coin2.close).plot() # Plot the spread
+# plt.axhline((coin1.close - coin2.close).mean(), color='red', linestyle='--') # Add the mean
+# plt.xlabel('Time')
+# plt.legend(['Price Spread', 'Mean'])
+# # plt.show()
+
+S1 = sm.add_constant(coin1.close)
+results = sm.OLS(coin2.close, coin1.close).fit()
+
+spread = coin2.close - results.params['close'] * coin1.close
+spread.plot(figsize=(12,6))
+plt.axhline(spread.mean(), color='black')
+plt.legend(['Spread'])
+plt.show()
+
+# ratio = coin1.close/coin2.close
+# ratio.plot(figsize=(12,6))
+# plt.axhline(ratio.mean(), color='black')
+# plt.legend(['Price Ratio'])
+# plt.show()
+
+# pepe.zscore(ratio).plot(figsize=(12,6))
+# plt.axhline(pepe.zscore(ratio).mean())
+# plt.axhline(1.0, color='red')
+# plt.axhline(-1.0, color='green')
+# plt.show()
+
+
+
+"""
+PAIRS TRADING: PSEUDO CODE
+
+beta = a + (b*x)
+Use a linear regression formula.
+
+if X and Y are cointegrated:
+    calculate Beta between X and Y 
+    calculate spread as X - Beta * Y
+    calculate z-score of spread
+
+S1 = sm.add_constant(S1)
+results = sm.OLS(S2, S1).fit()
+S1 = S1['ADBE']
+b = results.params['ADBE']
+
+spread = S2 - b * S1
+spread.plot(figsize=(12,6))
+plt.axhline(spread.mean(), color='black')
+plt.xlim('2013-01-01', '2018-01-01')
+plt.legend(['Spread']);
+
+
+
+
+    # entering trade (spread is away from mean by two sigmas):
+    if z-score > 2:
+        sell spread (sell 1000 of X, buy 1000 * Beta of Y)
+    if z-score < -2:
+        buy spread (buy 1000 of X, sell 1000 * Beta of Y)
+
+    # exiting trade (spread converged close to mean):
+    if we're short spread and z-score < 1:
+        close the trades
+    if we're long spread and z-score > -1:
+        close the trades
+
+# repeat above on each new bar, recalculating rolling Beta and spread etc.
+
+
+"""

@@ -111,12 +111,23 @@ class Scrape():
                     exchange.sleep(60000)
 
 
-    def scrape_candles_to_df(self, exchange_id, max_retries, symbol, timeframe, since, limit):
-        from os.path import exists
+    def scrape_candles(self, exchange_id, max_retries, symbol, timeframe, since, limit):
+        pass
+        """
+        
+        
+        """
 
-        file = symbol.replace('/', '').lower() + '-candles-' + timeframe + '.csv'
+
+    def scrape_candles_to_df_and_return(self, exchange_id, max_retries, symbol, timeframe, since, limit):
+
+        # TODO: Check if time.now() - since is > 1 minute. You need to see if they requested new candles before there are any to be returned.
+        # Check if it takes longer than the timeframe to pull data for multiple tickers so you can pull the latest candles for the symbols waiting.
+
+        from os.path import exists
+        sym = symbol.replace('/', '').lower()
+        file = f'CSV\\{sym}-candles-{timeframe}.csv'
         columns = ['time', 'open', 'high', 'low', 'close', 'volume']
-        print(file)
         if(exists(file)):
             df = pd.read_csv(file)
             df.columns = columns
