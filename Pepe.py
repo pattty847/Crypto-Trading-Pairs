@@ -9,14 +9,12 @@ import ccxt
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from Scrape_Binance import Scrape
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express
 
-class Pepe():
+class PepeFramework():
     def __init__(self) -> None:
         pass
 
@@ -86,9 +84,30 @@ class Pepe():
     def zscore(self, series):
         return (series - series.mean()) / np.std(series)
 
+    # TODO: ADD THIS
+    # def linear_regression(self, df, ticker_a, ticker_b):
+    #     X = df[ticker_a].iloc[1:].to_numpy().reshape(-1, 1)
+    #     Y = df[ticker_b].iloc[1:].to_numpy().reshape(-1, 1)
+        
+    #     # S1 = sm.add_constant(coin1.close)
+    #     # results = sm.OLS(coin2.close, coin1.close).fit()
+
+    #     # lin_regr = LinearRegression()
+    #     # lin_regr.fit(X, Y)
+    
+    #     # Y_pred = lin_regr.predict(X)
+    
+    #     # alpha = lin_regr.intercept_[0]
+    #     # beta = lin_regr.coef_[0, 0]
+    
+    #     fig, ax = plt.subplots()
+    #     ax.set_title("Alpha: " + str(round(alpha, 5)) + ", Beta: " + str(round(beta, 3)))
+    #     ax.scatter(X, Y)
+    #     ax.plot(X, Y_pred, c='r')
+
 
     def plot_ohlcv_orders_plotly(self, candles, orders):
-        pepe = Pepe()
+        pepe = PepeFramework()
 
         grouped_multiple = orders.groupby(['timestamp']).agg({'size': ['sum'], 'price': ['mean'], 'side':['first']})
         grouped_multiple.columns = ['size', 'price', 'side']
@@ -99,47 +118,47 @@ class Pepe():
         pepe.plot_ohlcv_plotly(candles, orders)
 
     
-    def get_coinintegration(self, since, exchange, timeframe, symbol):
-        scrape = Scrape()
-        coin1 = scrape.scrape_candles_to_df(exchange_id=exchange, max_retries = 3, symbol=symbol[0], timeframe=timeframe, since = since, limit=1000)
-        coin2 = scrape.scrape_candles_to_df(exchange_id=exchange, max_retries = 3, symbol=symbol[1], timeframe=timeframe, since = since, limit=1000)
+    # def get_coinintegration(self, since, exchange, timeframe, symbol):
+    #     scrape = Scrape()
+    #     coin1 = scrape.scrape_candles_to_df(exchange_id=exchange, max_retries = 3, symbol=symbol[0], timeframe=timeframe, since = since, limit=1000)
+    #     coin2 = scrape.scrape_candles_to_df(exchange_id=exchange, max_retries = 3, symbol=symbol[1], timeframe=timeframe, since = since, limit=1000)
 
-        return pepe.cointegration(coin1.close, coin2.close)
+    #     return pepe.cointegration(coin1.close, coin2.close)
 
-pepe = Pepe()
-scrape = Scrape()
-since = '2022-09-01T00:00:00Z'
-exchange = 'binance'
-timeframe = '1m'
-symbols = ['BTC/USDT', 'ETH/USDT']
-#print(pepe.get_coinintegration(since, exchange, timeframe, symbols))
+# pepe = PepeFramework()
+# scrape = Scrape()
+# since = '2022-09-01T00:00:00Z'
+# exchange = 'binance'
+# timeframe = '1m'
+# symbols = ['BTC/USDT', 'ETH/USDT']
+# #print(pepe.get_coinintegration(since, exchange, timeframe, symbols))
 
-#coin1 = scrape.scrape_candles_to_df_and_return(exchange_id=exchange, max_retries = 3, symbol=symbols[0], timeframe=timeframe, since = since, limit=1000)
-#coin2 = scrape.scrape_candles_to_df_and_return(exchange_id=exchange, max_retries = 3, symbol=symbols[1], timeframe=timeframe, since = since, limit=1000)
+# coin1 = scrape.scrape_candles_to_df_and_return(exchange_id=exchange, max_retries = 3, symbol=symbols[0], timeframe=timeframe, since = since, limit=1000)
+# coin2 = scrape.scrape_candles_to_df_and_return(exchange_id=exchange, max_retries = 3, symbol=symbols[1], timeframe=timeframe, since = since, limit=1000)
 
 
-coin1 = pd.read_csv('CSV\\btcusdt-candles-1m.csv')
-coin2 = pd.read_csv('CSV\\ethusdt-candles-1m.csv')
-columns = ['time', 'open', 'high', 'low', 'close', 'volume']
-coin1.columns = columns
-coin2.columns = columns
-print(pepe.cointegration(coin1.close, coin2.close))
+# coin1 = pd.read_csv('CSV\\btcusdt-candles-1m.csv')
+# coin2 = pd.read_csv('CSV\\ethusdt-candles-1m.csv')
+# columns = ['time', 'open', 'high', 'low', 'close', 'volume']
+# coin1.columns = columns
+# coin2.columns = columns
+# print(pepe.cointegration(coin1.close, coin2.close))
 
-# plt.figure(figsize=(12,6))
-# (coin1.close - coin2.close).plot() # Plot the spread
-# plt.axhline((coin1.close - coin2.close).mean(), color='red', linestyle='--') # Add the mean
-# plt.xlabel('Time')
-# plt.legend(['Price Spread', 'Mean'])
-# # plt.show()
+# # plt.figure(figsize=(12,6))
+# # (coin1.close - coin2.close).plot() # Plot the spread
+# # plt.axhline((coin1.close - coin2.close).mean(), color='red', linestyle='--') # Add the mean
+# # plt.xlabel('Time')
+# # plt.legend(['Price Spread', 'Mean'])
+# # # plt.show()
 
-S1 = sm.add_constant(coin1.close)
-results = sm.OLS(coin2.close, coin1.close).fit()
+# S1 = sm.add_constant(coin1.close)
+# results = sm.OLS(coin2.close, coin1.close).fit()
 
-spread = coin2.close - results.params['close'] * coin1.close
-spread.plot(figsize=(12,6))
-plt.axhline(spread.mean(), color='black')
-plt.legend(['Spread'])
-plt.show()
+# spread = coin2.close - results.params['close'] * coin1.close
+# spread.plot(figsize=(12,6))
+# plt.axhline(spread.mean(), color='black')
+# plt.legend(['Spread'])
+# plt.show()
 
 # ratio = coin1.close/coin2.close
 # ratio.plot(figsize=(12,6))
