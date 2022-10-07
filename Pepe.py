@@ -1,4 +1,3 @@
-from pyparsing import col
 import statsmodels
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import coint, adfuller
@@ -53,26 +52,25 @@ class PepeFramework():
         plt.show()
 
 
-    def plot_ohlcv_plotly(self, ohlcv, orders):
-        ohlcv.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
-        ohlcv['Date'] = pd.to_datetime(ohlcv['Date'], unit='ms')
+    def plot_ohlcv_plotly(self, ohlcv):
+        ohlcv['time'] = pd.to_datetime(ohlcv['time'], unit='ms')
         fig = go.Figure(
             data=[go.Candlestick(
-                    x=ohlcv['Date'],
-                    open=ohlcv['Open'],
-                    high=ohlcv['High'],
-                    low=ohlcv['Low'],
-                    close=ohlcv['Close'])])
+                    x=ohlcv['time'],
+                    open=ohlcv['open'],
+                    high=ohlcv['high'],
+                    low=ohlcv['low'],
+                    close=ohlcv['close'])])
 
-        date = pd.to_datetime(orders['timestamp'], unit='ms')
+        # date = pd.to_datetime(orders['timestamp'], unit='ms')
 
-        size = orders['size'] * 0.5
+        # size = orders['size'] * 0.5
 
-        fig.add_trace(go.Scatter(x=date, y=orders['price'], mode="markers", marker = dict(
-                color = ['green' if s == 'buy' else 'red' for s in orders['side']],
-                size=size
-            )
-        ))
+        # fig.add_trace(go.Scatter(x=date, y=orders['price'], mode="markers", marker = dict(
+        #         color = ['green' if s == 'buy' else 'red' for s in orders['side']],
+        #         size=size
+        #     )
+        # ))
 
         fig.show()
 

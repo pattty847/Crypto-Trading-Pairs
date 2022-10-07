@@ -182,15 +182,29 @@ class Scrape():
             for exchange in self.exchanges:
                 # Set a temp var for each exchange bc the second one in the loop gets lost, idk y
                 since = exchange.parse8601(self.since)
+
+                # Get the timeframe in seconds
                 tf = exchange.parse_timeframe(timeframe)
+                # Loop through symbols
                 for symbol in self.symbols:
+                    # Create the file object for each CSV file
                     sym = symbol.replace('/', '').lower()
                     file = f'CSV\\{exchange}-{sym}-{timeframe}.csv'
+
+                    # If it exists 
                     if(exists(file)):
+                        # Read the dataframe stuff
                         df = pd.read_csv(file)
+                        # Assign the columns and index
                         df.columns = df_columns
+
+                        # Grab the last timeframe candle
                         since = df['time'].iloc[-1]
+
+                        # Set the wait time to candle close, because we can't request data for new candle until it closes
                         wait_time = (exchange.milliseconds() - since) / 1000
+
+                        # If a new candle has closed already
                         if not (wait_time) <= tf:
                             # fetch all the new candles
                             ohlcv = self.scrape_ohlcv(exchange, max_retries, symbol, timeframe, since, limit)
@@ -206,8 +220,9 @@ class Scrape():
                             ohlcv = pd.DataFrame(ohlcv, columns=df_columns)
 
                             # Append the concatinated result of the original df and the new data to dataframes list
-                            dataframes.append(pd.concat([df, ohlcv]))
+                            dataframes.append(pd.concat([df, ohlcv]).set_index('time'))
                         else:
+                            # If we need more time for a new candle to close tell them how long and pass the opened CSV files
                             print(f"Time till next candle close: {wait_time}s, {float(wait_time / 60).__round__(2)}m, {float(wait_time / 60 / 60).__round__(2)}h, {float(wait_time / 60 / 60 / 24).__round__(2)}d.")
                             dataframes.append(df)
                     else:
@@ -217,13 +232,17 @@ class Scrape():
                         # save them to csv file
                         print('Saved', len(ohlcv), 'candles from', exchange.iso8601(ohlcv[0][0]), 'to', exchange.iso8601(ohlcv[-1][0]))
                         self.write_to_csv(file, ohlcv)
-                        dataframes.append(pd.DataFrame(ohlcv, columns=df_columns))
+                        dataframes.append(pd.DataFrame(ohlcv, columns=df_columns).set_index('time'))
         self.since = None
         return dataframes
 
 
 
-scrape = Scrape(['binance'], ['BTC/USDT'])
+scrape = Scrape(['binance'], ['BTC/USDT', 'ETH/USDT'])
 pepe = PepeFramework()
-df = scrape.scrape_candles(3, '1m', "2022-10-04T00:00:00Z", 1000)
+df = scrape.scrape_candles(3, '1s', "2022-10-06T15:00:00Z", 1000)
+# # print(pepe.cointegration(df[0]['close'], df[1]['close']))
 print(scrape.calculateWaveTrend(df[0]))
+pepe.plot_ohlcv_plotly(df[0])
+
+print(scrape.exchanges[0].timeframes)

@@ -1,3 +1,7 @@
 statsmodels
 ccxt
 pandas
+numpy
+matplotlib
+seaborn
+plotly
