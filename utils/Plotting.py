@@ -1,15 +1,17 @@
-from this import d
-from numpy import indices
 import plotly.graph_objects as go
 import pandas as pd
 import pandas_ta as pta
+import matplotlib.pyplot as plt
+import seaborn
 
+from utils.DoStuff import DoStuff
 from plotly.subplots import make_subplots
+
 
 
 class Plotting():
     def __init__(self) -> None:
-        pass
+        self.dostuff = DoStuff()
 
     # TODO: FINISH THIS FUNC
     def plot_ohlcv(self, ohlcv: pd.DataFrame, indicator: int):
@@ -27,13 +29,13 @@ class Plotting():
         fig.add_trace(go.Bar(x=ohlcv['date'], y=ohlcv['volume']), row=3, col=1)
 
         if indicator:
-            indicator = pta.cg(ohlcv["close"], length=indicator, asc=True)
+            indicator = pta.ewma(ohlcv["close"], length=indicator, asc=True)
             fig.add_trace(go.Line(x=ohlcv['date'], y=indicator, name='SMA'), row=2, col=1)
 
         fig.update(layout_xaxis_rangeslider_visible=False)
         fig.show()
 
-
+    # TODO: FINISH THIS FUNC
     def plot_ohlcv_orders(self, ohlcv: pd.DataFrame, orders: pd.DataFrame):
         ohlcv['date'] = pd.to_datetime(ohlcv['date'], unit='ms')
         orders['date'] = pd.to_datetime(orders['date'], unit='ms')
@@ -63,7 +65,7 @@ class Plotting():
 
         fig.show()
 
-
+    # TODO: FINISH THIS FUNC
     def plot_3d(self, df):
         N = 70
 
@@ -80,3 +82,16 @@ class Plotting():
             margin=dict(r=20, l=10, b=10, t=10))
 
         fig.show()
+
+
+    def plot_coint_pairs(self, tickers:list, timeframe:str, since:str, exchange):
+        scores, pvalues, pairs = self.dostuff.find_cointegrated_pairs(exchange.get_matrix_of_closes(tickers, timeframe, since))
+        fig, ax = plt.subplots(figsize=(10,10))
+        seaborn.heatmap(
+            pvalues, 
+            xticklabels=tickers, 
+            yticklabels=tickers, 
+            cmap='RdYlGn_r', 
+            mask = (pvalues >= 0.05)
+        )
+        plt.show()
