@@ -1,21 +1,8 @@
-# -*- coding: utf-8 -*-
-
-import os
-import sys
 import csv
-import time
-
-# -----------------------------------------------------------------------------
-
-root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(root + '/python')
-
-import ccxt  # noqa: E402
+import ccxt.async_support as ccxt  # noqa: E402
+import asyncio
 import pandas as pd
 import numpy as np
-import statsmodels
-import statsmodels.api as sm
-from statsmodels.tsa.stattools import coint, adfuller
 from Pepe import PepeFramework
 
 # -----------------------------------------------------------------------------
@@ -112,7 +99,7 @@ class Scrape():
                 wtCross.append(False)
         return wtCross
 
-    # TODO: Make this function return a series of buy or sell values for a dataframe
+
     def calculateWaveTrend(self, src):
         chlen = 9
         avg = 12
@@ -160,11 +147,12 @@ class Scrape():
         return (tfSrc)
 
 
-    def scrape_candles(self, max_retries, timeframe, since, limit):
+    # Old scrape candles function
+    def scrape_candles(self, max_retries:int, symbol: str, timeframe: str, since: str, limit: int):
         """
         Pulls new candle data for timeframe on each symbol passed. It will check if there exists data for the symbol, if so, pull that file, 
-        and update it with the latest candle information. It does not let you call it until the last timeframe you called closes,
-        ex: 1m timeframe call must wait 1m for new candle data to call function again. 
+        and update it with the latest candle information. It the latest candle in the timeframe requested is not closed, it will return what's
+        on the CSV file.
 
         Return: Dataframe for each symbol
         
@@ -174,75 +162,107 @@ class Scrape():
 
         # List of OHLCV dataframes indexed by their time
         dataframes = [] 
-        df_columns = ['time', 'open', 'high', 'low', 'close', 'volume']
 
         # We must create a global var for the function or whatever bc it turns into a None Type after one iteration of the exchange loop.
         self.since = since
         if isinstance(since, str):
-            for exchange in self.exchanges:
-                # Set a temp var for each exchange bc the second one in the loop gets lost, idk y
-                since = exchange.parse8601(self.since)
+            # Set a temp var for each exchange bc the second one in the loop gets lost, idk y
+            since = self.api.parse8601(self.since)
 
-                # Get the timeframe in seconds
-                tf = exchange.parse_timeframe(timeframe)
-                # Loop through symbols
-                for symbol in self.symbols:
-                    # Create the file object for each CSV file
-                    sym = symbol.replace('/', '').lower()
-                    file = f'CSV\\{exchange}-{sym}-{timeframe}.csv'
+            # Get the timeframe in seconds
+            tf = self.api.parse_timeframe(timeframe)
+            # Loop through symbols
+            # Create the file object for each CSV file
+            sym = symbol.replace('/', '').lower()
+            file = f'CSV\\{str(self.exchange).replace(" ", "").lower()}-{sym}-{timeframe}.csv'
+            print(file)
+            # If it exists 
+            if(exists(file)):
+                # Read the dataframe stuff
+                df = pd.read_csv(file)
+                # Assign the columns and index
+                # Grab the last timeframe candle
+                since = df['time'].iloc[-1]
 
-                    # If it exists 
-                    if(exists(file)):
-                        # Read the dataframe stuff
-                        df = pd.read_csv(file)
-                        # Assign the columns and index
-                        df.columns = df_columns
+                # Set the wait time to candle close, because we can't request data for new candle until it closes
+                wait_time = (self.api.milliseconds() - since) / 1000
 
-                        # Grab the last timeframe candle
-                        since = df['time'].iloc[-1]
+                # If a new candle has closed already
+                if not (wait_time) <= tf:
+                    # fetch all the new candles
+                    ohlcv = self.scrape_ohlcv(self.api, max_retries, symbol, timeframe, since, limit)
 
-                        # Set the wait time to candle close, because we can't request data for new candle until it closes
-                        wait_time = (exchange.milliseconds() - since) / 1000
+                    # Remove the last row because we will rewrite it
+                    ohlcv.pop(0)
+                    print('Saved', len(ohlcv), 'candles from', self.api.iso8601(ohlcv[0][0]), 'to', self.api.iso8601(ohlcv[-1][0]))
 
-                        # If a new candle has closed already
-                        if not (wait_time) <= tf:
-                            # fetch all the new candles
-                            ohlcv = self.scrape_ohlcv(exchange, max_retries, symbol, timeframe, since, limit)
+                    # Write the data to the file before we make it into a dataframe
+                    self.write_to_csv(file, ohlcv)
 
-                            # Remove the last row because we will rewrite it
-                            ohlcv.pop(0)
-                            print('Saved', len(ohlcv), 'candles from', exchange.iso8601(ohlcv[0][0]), 'to', exchange.iso8601(ohlcv[-1][0]))
+                    # Convert to dataframe
+                    ohlcv = pd.DataFrame(ohlcv)
 
-                            # Write the data to the file before we make it into a dataframe
-                            self.write_to_csv(file, ohlcv)
+                    # Append the concatinated result of the original df and the new data to dataframes list
+                    dataframes.append(pd.concat([df, ohlcv]))
+                else:
+                    # If we need more time for a new candle to close tell them how long and pass the opened CSV files
+                    print(f"Time till next candle close: {wait_time}s, {float(wait_time / 60).__round__(2)}m, {float(wait_time / 60 / 60).__round__(2)}h, {float(wait_time / 60 / 60 / 24).__round__(2)}d.")
+                    dataframes.append(df)
+            else:
 
-                            # Convert to dataframe
-                            ohlcv = pd.DataFrame(ohlcv, columns=df_columns)
-
-                            # Append the concatinated result of the original df and the new data to dataframes list
-                            dataframes.append(pd.concat([df, ohlcv]).set_index('time'))
-                        else:
-                            # If we need more time for a new candle to close tell them how long and pass the opened CSV files
-                            print(f"Time till next candle close: {wait_time}s, {float(wait_time / 60).__round__(2)}m, {float(wait_time / 60 / 60).__round__(2)}h, {float(wait_time / 60 / 60 / 24).__round__(2)}d.")
-                            dataframes.append(df)
-                    else:
-
-                        # fetch all candles
-                        ohlcv = self.scrape_ohlcv(exchange, max_retries, symbol, timeframe, since, limit)
-                        # save them to csv file
-                        print('Saved', len(ohlcv), 'candles from', exchange.iso8601(ohlcv[0][0]), 'to', exchange.iso8601(ohlcv[-1][0]))
-                        self.write_to_csv(file, ohlcv)
-                        dataframes.append(pd.DataFrame(ohlcv, columns=df_columns).set_index('time'))
+                # fetch all candles
+                ohlcv = self.scrape_ohlcv(max_retries, symbol, timeframe, since, limit)
+                # save them to csv file
+                print('Saved', len(ohlcv), 'candles from', self.api.iso8601(ohlcv[0][0]), 'to', self.api.iso8601(ohlcv[-1][0]))
+                self.write_to_csv(file, ohlcv)
+                dataframes.append(pd.DataFrame(ohlcv))
         self.since = None
         return dataframes
 
 
 
-scrape = Scrape(['binance'], ['BTC/USDT', 'ETH/USDT'])
+scrape = Scrape(['binance', 'ftx', 'coinbasepro', 'bitfinex'], ['BTC/USDT', 'ETH/USDT'])
 pepe = PepeFramework()
-df = scrape.scrape_candles(3, '1s', "2022-10-06T15:00:00Z", 1000)
-# # print(pepe.cointegration(df[0]['close'], df[1]['close']))
-print(scrape.calculateWaveTrend(df[0]))
-pepe.plot_ohlcv_plotly(df[0])
+df = scrape.scrape_candles(3, '1d', "2017-01-01T00:00:00Z", 200)
+pepe.plot_ohlcv_plotly(df[3])
 
-print(scrape.exchanges[0].timeframes)
+
+
+
+class Exchange():
+    def __init__(self, exchanges) -> None:
+        self.api = self.init_exchanges(exchanges)
+
+
+    def init_exchanges(self, exchanges):
+        apis = {}  # a placeholder for your instances
+        for id in exchanges:
+            exchange = getattr(ccxt, id)
+            apis[id] = exchange()
+        return apis
+
+
+    async def get_orderbook(self, symbol):
+        results = {}
+        for exchange in self.api.keys():
+            orderbook = await self.fetch_orderbook(self.api[exchange], symbol)  # ←------ STEP 3
+
+            await self.api[exchange].close()  # ←----------- LAST STEP GOES AFTER ALL CALLS
+            results[exchange] = orderbook
+        return results
+
+
+    async def fetch_orderbook(self, exchange, symbol):
+        try:
+            result = await exchange.fetch_order_book(symbol)
+            return result
+        except ccxt.BaseError as e:
+            print(type(e).__name__, str(e), str(e.args))
+            raise e
+
+    def test_call():
+        exchanges = ['binance', 'ftx', 'coinbasepro', 'kucoin', 'gateio']
+
+        exchange = Exchange(exchanges)
+        results = asyncio.run(exchange.get_orderbook('BTC/USDT'))
+        print([(exchange_id, ticker) for exchange_id, ticker in results.items()])
