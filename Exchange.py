@@ -7,7 +7,9 @@ import pandas as pd
 
 class Exchange():
     """
-    Initializes both Coinbase exchanges and creates easy functions to access data within the api.
+        This exchange class initializes a ccxt exchange connection and stores some information as attributes.
+        You can pull candles for one or many tickers. 
+        You can get a dataframe of ticker closes
     """
     def __init__(self, exchange: str):
         try: 
@@ -15,6 +17,7 @@ class Exchange():
             self.api.load_markets()
             self.exchange = exchange
             self.timeframes = self.api.timeframes
+            print(f'{exchange} connected.')
             try:
                 self.symbols = open(f'CSV\\{exchange}-symbols.txt', "r").read().splitlines()
             except FileNotFoundError as e:
@@ -88,7 +91,9 @@ class Exchange():
             return ohlcv
 
 
-        # If a new candle has closed already
+        # TODO: Make it so you can update information in the candles history's past 
+        # This needs to check if since is less than the first date in the CSV because you need to add data to the beginning of the file up to the first date,
+        # and the rest of the data at the end of the file starting at the last date.
         if (wait_time) < tf:
             ohlcv = pd.read_csv(file)
             last_pull_time = ohlcv.iat[-1, 0]
@@ -103,7 +108,7 @@ class Exchange():
 
 
 
-    def get_candles_csv(self, symbol: str, timeframe: str, since: str):
+    def get_candles_from_csv(self, symbol: str, timeframe: str, since: str):
         columns=['date', 'open', 'high', 'low', 'close', 'volume']
         sym = symbol.replace('/', '').lower()
         file = f'CSV\\{str(self.exchange).replace(" ", "").lower()}-{sym}-{timeframe}.csv'
@@ -133,6 +138,10 @@ class Exchange():
             df[ticker] = ohlcv[ticker]['close']
         df.index = ohlcv[df.columns.tolist()[0]]['date']
         return df
+
+
+    def update_all_tickers(self, symbol: str, timeframe: str, since: str):
+        pass
 
 
     def automate_data_pulls(self):

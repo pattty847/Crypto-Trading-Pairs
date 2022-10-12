@@ -3,6 +3,7 @@ import pandas as pd
 import pandas_ta as pta
 import matplotlib.pyplot as plt
 import seaborn
+import statsmodels.api as sm
 
 from utils.DoStuff import DoStuff
 from plotly.subplots import make_subplots
@@ -11,7 +12,7 @@ from plotly.subplots import make_subplots
 
 class Plotting():
     def __init__(self) -> None:
-        self.dostuff = DoStuff()
+        self.do = DoStuff()
 
     # TODO: FINISH THIS FUNC
     def plot_ohlcv(self, ohlcv: pd.DataFrame, indicator: int):
@@ -85,7 +86,7 @@ class Plotting():
 
 
     def plot_coint_pairs(self, tickers:list, timeframe:str, since:str, exchange):
-        scores, pvalues, pairs = self.dostuff.find_cointegrated_pairs(exchange.get_matrix_of_closes(tickers, timeframe, since))
+        scores, pvalues, pairs = self.do.find_cointegrated_pairs(exchange.get_matrix_of_closes(tickers, timeframe, since))
         fig, ax = plt.subplots(figsize=(10,10))
         seaborn.heatmap(
             pvalues, 
@@ -95,3 +96,34 @@ class Plotting():
             mask = (pvalues >= 0.05)
         )
         plt.show()
+
+
+    def plot_spread_ratio(self, sym_1: pd.Series, sym_2: pd.Series, ratio=False, zscore=False):
+        sym_1 = sm.add_constant(sym_1)
+        result = sm.OLS(sym_2, sym_1).fit()
+        sym_1 = sym_1['close']
+        b = result.params['close']
+
+        if ratio:
+            ratio = sym_1/sym_2
+            ratio.plot(figsize=(12,6))
+            plt.axhline(ratio.mean(), color='black')
+            plt.legend(['Price Ratio'])
+            plt.show()
+        
+        if zscore:
+            ratio = sym_1/sym_2
+            score = self.do.zscore(ratio)
+            score.plot(figsize=(12, 6))
+            plt.axhline(self.do.zscore(score).mean())
+            plt.axhline(1.0, color='red')
+            plt.axhline(-1.0, color='green')
+            plt.show()
+            
+        # TODO: Fix this and add a spread condition or make whole function use params, learn the param thing
+        if not ratio and not zscore:
+            spread = sym_2 - b * sym_1
+            spread.plot(figsize=(12, 6))
+            plt.axhline(spread.mean(), color='black')
+            plt.legend(['Spread'])
+            plt.show()
