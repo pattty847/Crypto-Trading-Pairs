@@ -1,4 +1,7 @@
-from genericpath import isfile
+from genericpath import isdir, isfile
+from os import mkdir
+
+from pyparsing import col
 from utils.DoStuff import DoStuff
 
 import ccxt as ccxt
@@ -16,12 +19,14 @@ class Exchange():
             self.api = getattr(ccxt, exchange)()
             self.api.load_markets()
             self.exchange = exchange
-            self.timeframes = self.api.timeframes
+            self.timeframes = list(self.api.timeframes.keys())
             print(f'{exchange} connected.')
             try:
-                self.symbols = open(f'CSV\\{exchange}-symbols.txt', "r").read().splitlines()
+                self.symbols = open(f'CSV\\{exchange}\\symbols.txt', "r").read().splitlines()
             except FileNotFoundError as e:
                 self.symbols = self.api.symbols
+                mkdir(f'CSV\\{exchange}\\')
+                pd.Series(self.symbols).to_csv(f'CSV\\{exchange}\\symbols.txt', index=False)
         except ccxt.ExchangeError as e:
             print(e)
 
@@ -78,13 +83,16 @@ class Exchange():
 
         columns=['date', 'open', 'high', 'low', 'close', 'volume']
         sym = symbol.replace('/', '').lower()
-        file = f'CSV\\{str(self.exchange).replace(" ", "").lower()}-{sym}-{timeframe}.csv'
+        exch = str(self.exchange).replace(" ", "").lower()
+        dir_ = f'CSV\\{exch}\\'
+        file = f'{dir_}{sym}-{timeframe}.csv'
         since = self.api.parse8601(since)
         # Get the timeframe in seconds
         tf = self.api.parse_timeframe(timeframe)
         # Set the wait time to candle close, because we can't request data for new candle until it closes
         wait_time = (self.api.milliseconds() - since) / 1000
-        
+        if not isdir(dir_):
+            mkdir(dir_)
         if not (isfile(file)):
             ohlcv = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, since, 500), columns=columns)
             ohlcv.to_csv(file, mode='a', index=False)
@@ -108,11 +116,13 @@ class Exchange():
 
 
 
-    def get_candles_from_csv(self, symbol: str, timeframe: str, since: str):
+    def get_candles_from_csv(self, symbol: str, timeframe: str):
         columns=['date', 'open', 'high', 'low', 'close', 'volume']
         sym = symbol.replace('/', '').lower()
         file = f'CSV\\{str(self.exchange).replace(" ", "").lower()}-{sym}-{timeframe}.csv'
-        return pd.read_csv(file, columns=columns)
+        df = pd.read_csv(file)
+        df.columns = columns
+        return df
 
 
 
