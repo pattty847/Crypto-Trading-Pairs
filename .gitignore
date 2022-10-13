@@ -2,3 +2,4 @@
 CSV/
 old-files/
 CCXT-Examples/
+__pycache__/
