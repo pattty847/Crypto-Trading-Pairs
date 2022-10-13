@@ -1,4 +1,5 @@
 from cProfile import label
+from string import hexdigits
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
 
@@ -10,6 +11,8 @@ class Graphics():
         self.api = api
         self.do = DoStuff()
         self.tf = '1d'
+        self.viewport_width = 1200
+        self.viewport_height = 900
 
 
     def callback(self, sender, app_data, user_data):
@@ -33,7 +36,7 @@ class Graphics():
                 dpg.add_plot_legend()
                 xaxis = dpg.add_plot_axis(dpg.mvXAxis, label="Day", time=True)
                 with dpg.plot_axis(dpg.mvYAxis, label="USD"):
-                    dpg.add_candle_series(dates, opens, closes, lows, highs, label="GOOGL", time_unit=dpg.mvTimeUnit_Day)
+                    dpg.add_candle_series(dates, opens, closes, lows, highs, label=app_data, time_unit=dpg.mvTimeUnit_Day)
                     dpg.fit_axis_data(dpg.top_container_stack())
                 dpg.fit_axis_data(xaxis)
 
@@ -49,22 +52,20 @@ class Graphics():
         # Each window is a subset inside the main viewport window.
         # To set this window to fill the viewport add this parameter: tag="name" 
         # Set the primary window at bottom: dpg.set_primary_window("name", True)
-        with dpg.window(label="Test Label", width=500, height=500):
+        with dpg.window(tag="Main"):
             with dpg.menu_bar():
                 with dpg.menu(label="Charts"):
                     with dpg.menu(label="Ticker"):
                         dpg.add_listbox(self.api.symbols, callback = self.callback)
-
                     with dpg.menu(label="Timeframe"):
                         # dpg.add_listbox(self.api.timeframes.keys(), label='Timeframe', callback = self.set_timeframe)
-                        dpg.add_listbox(self.api.timeframes, callback = self.set_timeframe)
+                        dpg.add_listbox(self.api.timeframes, callback = self.set_timeframe, label=f"({self.tf})")
+            dpg.add_listbox(self.api.symbols, callback = self.callback, width=200, pos=[self.viewport_width - 225, 25])
 
-
-        dpg.show_item_registry()                
-
-        dpg.create_viewport(title='Custom Title', width=1200, height=600)
+        dpg.create_viewport(title='Custom Title', width=self.viewport_width, height=self.viewport_height)
         dpg.setup_dearpygui()
         dpg.show_viewport()
+        dpg.set_primary_window("Main", True)
         dpg.start_dearpygui()
 
         # below replaces, start_dearpygui()
@@ -79,7 +80,7 @@ class Graphics():
 
     def demo(self):
         dpg.create_context()
-        dpg.create_viewport(title='Custom Title', width=600, height=600)
+        dpg.create_viewport(title='Custom Title', width=self.viewport_width, height=self.viewport_height)
 
         demo.show_demo()
 
