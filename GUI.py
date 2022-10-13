@@ -1,8 +1,10 @@
 from cProfile import label
-from string import hexdigits
+from subprocess import call
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
+import json
 
+from datetime import datetime
 from utils.DoStuff import DoStuff
 from Exchange import Exchange
 
@@ -14,14 +16,53 @@ class Graphics():
         self.viewport_width = 1200
         self.viewport_height = 900
 
+        self.last_symbol = None
 
-    def callback(self, sender, app_data, user_data):
-        print(f"sender: {sender}, \t app_data: {app_data}, \t user_data: {user_data}")
+        # TODO: Check if settings file is not created yet and if not make one with default settings.
+        with open("settings.json", "r") as jsonFile:
+            self.settings = json.load(jsonFile)
 
-        # TODO: This will need to pull whatever data, if any, up to a certain amount of time which needs to be
-        # thought of. Idk looks like tradingview shows up to 30 days but maybe that was my last frame width saved.
-        # 30 days sounds good tho
-        df = self.api.get_candles(app_data, self.tf, self.do.get_time_in_past(0, 30))
+
+    def update_settings(self, x):
+        self.settings.update(x)
+        with open("settings.json", "w") as jsonFile:
+            json.dump(self.settings, jsonFile)
+
+
+    def set_ticker(self, sender, app_data, user_data):
+        dpg.configure_item('ticker-listbox', label = app_data)
+        x = {"last_ticker":app_data}
+        self.update_settings(x)
+
+
+
+
+    def set_timeframe(self, sender, app_data, user_data):
+        dpg.configure_item('timeframe-listbox', label = app_data)
+        x = {"last_timeframe":app_data}
+        self.update_settings(x)
+
+
+
+    def set_date(self, sender, app_data, user_data):
+        print(app_data)
+        self.settings.update({"last_since":app_data})
+
+    def refresh_chart(self, sender, app_data, user_data):
+        (dates, opens, highs, closes, lows) = self.get_candles()
+        dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.convert_timeframe(self.settings['last_timeframe']))
+        dpg.configure_item('chart-title', label=f"Symbol:{self.settings['last_ticker']} | Timeframe: {self.settings['last_timeframe']}")
+        dpg.fit_axis_data('candle-series-yaxis')
+        dpg.fit_axis_data('candle-series-yaxis')
+
+
+    def get_candles(self):
+        # By this function call the settings for each of these vars should be initialized and not empty.
+        load_ticker = self.settings["last_ticker"]
+        load_timeframe = self.settings["last_timeframe"]
+        load_since = self.settings["last_since"]
+        since_ = load_since if isinstance(load_since, str) else self.do.get_time_in_past(minutes=load_since['min'], days=load_since['month_day'])
+        df = self.api.get_candles(load_ticker, load_timeframe, since_)
 
         dates = list(df['date']/1000)
         opens = list(df['open'])
@@ -29,38 +70,99 @@ class Graphics():
         lows = list(df['low'])
         highs = list(df['high'])
 
+        return (dates, opens, highs, closes, lows)
 
-        with dpg.window(label='Ticker', width=600, height=500):
-            dpg.add_text(f"Timeframe: {self.tf} | Symbol:{app_data}")
-            with dpg.plot(label="Candle Series", height=400, width=-1):
+
+    def convert_timeframe(self, tf):
+        match (tf[len(tf) - 1]):
+            case 's':
+                return dpg.mvTimeUnit_S
+            case 'm':
+                return dpg.mvTimeUnit_Min
+            case 'h':
+                return dpg.mvTimeUnit_Hr
+            case 'd':
+                return dpg.mvTimeUnit_Day
+            case 'M':
+                return dpg.mvTimeUnit_Mo
+            case _:
+                dpg.mvTimeUnit_Day
+
+
+    def charts_window(self, sender, app_data, user_data):
+        # Each window is a subset inside the main viewport window.
+        # To set this window to fill the viewport add this parameter: tag="name" 
+        # Set the primary window at bottom: dpg.set_primary_window("name", True)
+        with dpg.window(label=f"{self.api.name}", width=self.viewport_width - 25, height=self.viewport_height - 75, pos=[5, 25], no_move=True, no_resize=True, no_close=True):
+
+            with dpg.menu_bar():
+
+                if self.api.api.has['fetchOHLCV']:
+                    
+                    # TODO: Finish this
+                    # with dpg.menu(label="Exchange"):
+                    #     dpg.add_listbox(self.api.symbols, callback = self.callback)
+                    # Set default values to last ticker, timeframe, and date that was open.
+
+
+                    with dpg.menu(label="Ticker"):
+                        # Default value checks for ticker stored in settings which is stored before user closes the program. 
+                        ticker = dpg.add_listbox(self.api.symbols, tag='ticker-listbox', num_items = 20, callback = self.set_ticker, default_value=self.settings['last_ticker'] if self.settings['last_ticker'] != "" else "BTC/USDT", label=f"({self.settings['last_ticker']})")
+
+                    with dpg.menu(label="Timeframe"):
+                        tf = dpg.add_listbox(self.api.timeframes, tag='timeframe-listbox', num_items = 10, width=50, callback = self.set_timeframe, default_value=self.settings['last_timeframe'], label=f"({self.settings['last_timeframe']})")
+
+                    with dpg.menu(label="Date"):
+                        date = datetime.today().strftime('%Y-%m-%d').split("-")
+                        year = str(int(date[0][2:]))
+                        year_ = f'1{year}'
+                        dates = {'month_day': int(date[2]), 'year':int(year_), 'month':int(date[1])}
+                        
+                        since = dpg.add_date_picker(level=dpg.mvDatePickerLevel_Day, label='From', default_value=dates, callback=self.set_date)
+
+                    dpg.add_button(label='Go', callback=self.refresh_chart)
+
+
+                else:
+
+                    dpg.add_text(f'{self.api.name} does not have candlesticks available.')
+                    return
+                    
+            (dates, opens, highs, closes, lows) = self.get_candles()
+
+
+
+            with dpg.plot(label=f"Symbol:{dpg.get_value(ticker)} | Timeframe: {dpg.get_value(tf)}", tag='chart-title', height=-1, width=-1):
                 dpg.add_plot_legend()
-                xaxis = dpg.add_plot_axis(dpg.mvXAxis, label="Day", time=True)
-                with dpg.plot_axis(dpg.mvYAxis, label="USD"):
-                    dpg.add_candle_series(dates, opens, closes, lows, highs, label=app_data, time_unit=dpg.mvTimeUnit_Day)
+                xaxis = dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag='candle-series-xaxis', time=True)
+                with dpg.plot_axis(dpg.mvYAxis, label="USD", tag='candle-series-yaxis'):
+
+                    # TODO: Add check for timeframe and make refresh callback
+                    dpg.add_candle_series(dates, opens, closes, lows, highs, tag='candle-series', time_unit=self.convert_timeframe(dpg.get_value(tf)))
                     dpg.fit_axis_data(dpg.top_container_stack())
                 dpg.fit_axis_data(xaxis)
 
 
-    def set_timeframe(self, sender, app_data, user_data):
-        self.tf = app_data
+    def cointegration(self, sender, app_data, user_data):
+        pass
+
 
 
     def run(self):
         # This is the first step to use the dearpygui library.
         dpg.create_context()
 
-        # Each window is a subset inside the main viewport window.
-        # To set this window to fill the viewport add this parameter: tag="name" 
-        # Set the primary window at bottom: dpg.set_primary_window("name", True)
-        with dpg.window(tag="Main"):
+        # This is our primary viewport window which we have a menu bar at the top with other window selections.
+        with dpg.window(tag="Main", no_resize=True):
             with dpg.menu_bar():
-                with dpg.menu(label="Charts"):
-                    with dpg.menu(label="Ticker"):
-                        dpg.add_listbox(self.api.symbols, callback = self.callback)
-                    with dpg.menu(label="Timeframe"):
-                        # dpg.add_listbox(self.api.timeframes.keys(), label='Timeframe', callback = self.set_timeframe)
-                        dpg.add_listbox(self.api.timeframes, callback = self.set_timeframe, label=f"({self.tf})")
-            dpg.add_listbox(self.api.symbols, callback = self.callback, width=200, pos=[self.viewport_width - 225, 25])
+                with dpg.menu(label='Charts'):
+                    dpg.add_button(label="Open", callback=self.charts_window)
+
+                with dpg.menu(label='Demo'):
+                    dpg.add_button(label="Open", callback=self.demo)
+
+                with dpg.menu(label="Cointegration"):
+                    dpg.add_button(label="Open", callback=self.cointegration)
 
         dpg.create_viewport(title='Custom Title', width=self.viewport_width, height=self.viewport_height)
         dpg.setup_dearpygui()
@@ -78,16 +180,9 @@ class Graphics():
         dpg.destroy_context()
 
 
+
     def demo(self):
-        dpg.create_context()
-        dpg.create_viewport(title='Custom Title', width=self.viewport_width, height=self.viewport_height)
-
         demo.show_demo()
-
-        dpg.setup_dearpygui()
-        dpg.show_viewport()
-        dpg.start_dearpygui()
-        dpg.destroy_context()
 
 api = Exchange("ftx")
 gui = Graphics(api)

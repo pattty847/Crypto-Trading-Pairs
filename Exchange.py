@@ -14,21 +14,35 @@ class Exchange():
         You can pull candles for one or many tickers. 
         You can get a dataframe of ticker closes
     """
-    def __init__(self, exchange: str):
+    def __init__(self, exchange: str, api=False):
+        # Try initializing the exchange and catch any errors.
         try: 
             self.api = getattr(ccxt, exchange)()
-            self.api.load_markets()
-            self.exchange = exchange
-            self.timeframes = list(self.api.timeframes.keys())
-            print(f'{exchange} connected.')
-            try:
-                self.symbols = open(f'CSV\\{exchange}\\symbols.txt', "r").read().splitlines()
-            except FileNotFoundError as e:
-                self.symbols = self.api.symbols
-                mkdir(f'CSV\\{exchange}\\')
-                pd.Series(self.symbols).to_csv(f'CSV\\{exchange}\\symbols.txt', index=False)
+            if self.api.name:
+                self.name = self.api.name
+                print(f'{self.api.name} connected.')
+            else:
+                self.name = exchange.capitalize
+                print(f'{exchange.capitalize} connected.')
         except ccxt.ExchangeError as e:
-            print(e)
+            print(f'Error connecting to {exchange.capitalize}')
+
+        # Check if we have a file of the symbols
+        try:
+            self.symbols = open(f'CSV\\{exchange}\\symbols.txt', "r").read().splitlines()
+        except FileNotFoundError as e:
+            symbols = [x for x in self.api.fetch_tickers().items()]
+            # If not grab the symbols from the API and store them for quick loading next time. 
+            self.symbols = symbols
+            mkdir(f'CSV\\{exchange}\\')
+            pd.Series(self.symbols).to_csv(f'CSV\\{exchange}\\symbols.txt', index=False)
+
+        # Setting up attributes
+        self.api.load_markets()
+        self.exchange = exchange
+        
+        if self.api.has['fetchOHLCV']:
+            self.timeframes = list(self.api.timeframes.keys())
 
 
     def retry_fetch_ohlcv(self, max_retries:int, symbol: str, timeframe: str, since: str, limit: int):
@@ -62,7 +76,6 @@ class Exchange():
             else:
                 print(len(all_ohlcv), 'candles in total from', self.api.iso8601(fetch_since))
         return self.api.filter_by_since_limit(all_ohlcv, since, None, key=0)
-
 
 
     def get_mark_price(self, symbol: str):
@@ -115,7 +128,6 @@ class Exchange():
         return df
 
 
-
     def get_candles_from_csv(self, symbol: str, timeframe: str):
         columns=['date', 'open', 'high', 'low', 'close', 'volume']
         sym = symbol.replace('/', '').lower()
@@ -123,7 +135,6 @@ class Exchange():
         df = pd.read_csv(file)
         df.columns = columns
         return df
-
 
 
     def get_multi_candles(self, tickers:list, timeframe:str, since:str):

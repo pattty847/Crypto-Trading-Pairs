@@ -1,7 +1,7 @@
 from utils.Timer import Timer
 from utils.Plotting import Plotting
 from utils.DoStuff import DoStuff
-from utils.GUI import Graphics
+from GUI import Graphics
 from Exchange import Exchange
 
 import argparse
