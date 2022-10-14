@@ -5,3 +5,5 @@ numpy
 matplotlib
 seaborn
 plotly
+dearpygui
+pandas_ta

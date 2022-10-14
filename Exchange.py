@@ -7,6 +7,7 @@ from utils.DoStuff import DoStuff
 import dearpygui.dearpygui as dpg
 import ccxt as ccxt
 import pandas as pd
+import os
 
 
 class Exchange():
@@ -91,36 +92,39 @@ class Exchange():
         return (bid, ask, spread)
 
 
-    def get_candles(self, symbol: str, timeframe: str, since: str, gui):
+    def get_candles(self, symbol: str, timeframe: str, since: str):
+        
         if symbol not in self.symbols:
             print(f'{self.exchange}: Does not have [{symbol}].')
             return
 
         columns=['date', 'open', 'high', 'low', 'close', 'volume']
-        sym = symbol.replace('/', '').lower()
-        exch = str(self.exchange).replace(" ", "").lower()
-        dir_ = f'CSV\\{exch}\\'
-        file = f'{dir_}{sym}-{timeframe}.csv'
+        sym = symbol.replace('/', '').lower() # remove /
+        exch = str(self.exchange).replace(" ", "").lower() # remove spaces, lowercase
+        dir_ = f'CSV/{exch}/' # build directory: CSV/exchange/
+        file = f'{dir_}{sym}-{timeframe}.csv' # build file: CSV/exchange/btcusdt-5m.csv
         since = self.api.parse8601(since)
-        if not isdir(dir_):
-            mkdir(dir_)
-        if not (isfile(file)):
-            ohlcv = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, since, 500), columns=columns)
-            ohlcv.to_csv(file, mode='a', index=False)
+        if not os.path.exists(dir_): # make directory if it doesn't exist
+            os.mkdir(dir_)
+        if not (os.path.isfile(file)): # make file if it doesn't exist
+            ohlcv = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, since, 500), columns=columns) # pull ohlcv data
+            ohlcv.to_csv(file, mode='w', index=False) # write to CSV file. 
             return ohlcv
 
-        # If its on file
+        # If the file exists load it
         old_candles = pd.read_csv(file)
-        first_pull_time = old_candles.iat[0, 0]
-        last_pull_time = old_candles.iat[-1, 0]
+        first_pull_time = old_candles.iat[0, 0] # first stored time
+        last_pull_time = old_candles.iat[-1, 0] # last stored time
 
-        # This is where we update NEW information to file
+        # If we are requesting information within the file
         if first_pull_time < since:
             new_candles = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, last_pull_time, 500), columns=columns)
             new_candles.drop(new_candles.head(1).index, inplace=True)
             new_ohlcv = pd.concat([old_candles, new_candles], ignore_index=True)
             new_candles.to_csv(file, mode='a', index=False, header=False)
             return new_ohlcv
+
+        # If we are requesting information before the file has saved
         
         return old_candles
 
