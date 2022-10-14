@@ -39,7 +39,6 @@ class Graphics():
 
 
 
-
     def set_timeframe(self, sender, app_data, user_data):
         dpg.configure_item('timeframe-listbox', label = app_data)
         x = {"last_timeframe":app_data}
@@ -51,12 +50,18 @@ class Graphics():
         print(app_data)
         self.update_settings({"last_since":self.do.get_time_in_past(minutes=0, days=app_data['month_day'])})
 
+
+
     def refresh_chart(self, sender, app_data, user_data):
+        # Loading indicator start stop at end
+        # dpg.set_value('loading-symbol', show=True)
         (dates, opens, highs, closes, lows) = self.get_candles()
         dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.convert_timeframe(self.settings['last_timeframe']))
         dpg.configure_item('chart-title', label=f"Symbol:{self.settings['last_ticker']} | Timeframe: {self.settings['last_timeframe']}")
         dpg.fit_axis_data('candle-series-yaxis')
         dpg.fit_axis_data('candle-series-xaxis')
+        # dpg.set_value('loading-symbol', show=False)
+
 
 
     def get_candles(self):
@@ -75,6 +80,7 @@ class Graphics():
         return (dates, opens, highs, closes, lows)
 
 
+
     def convert_timeframe(self, tf):
         match (tf[len(tf) - 1]):
             case 's':
@@ -91,11 +97,13 @@ class Graphics():
                 dpg.mvTimeUnit_Day
 
 
+    # TODO: Start using lambda functions: callback = lambda:dpg.configure_item("tag", show=True, pos=[x, y], etc)
+
     def charts_window(self, sender, app_data, user_data):
         # Each window is a subset inside the main viewport window.
         # To set this window to fill the viewport add this parameter: tag="name" 
         # Set the primary window at bottom: dpg.set_primary_window("name", True)
-        with dpg.window(label=f"{self.api.name}", width=self.viewport_width - 25, height=self.viewport_height - 75, pos=[5, 25], no_move=True, no_resize=True, no_close=True, no_scrollbar=True):
+        with dpg.window(label=f"{self.api.name}", width=self.viewport_width - 25, height=self.viewport_height - 75, pos=[5, 25], no_move=True, no_resize=True, no_scrollbar=True):
 
             with dpg.menu_bar():
 
@@ -141,12 +149,31 @@ class Graphics():
 
                         dpg.add_candle_series(dates, opens, closes, lows, highs, tag='candle-series', time_unit=self.convert_timeframe(dpg.get_value(tf)))
                         dpg.fit_axis_data(dpg.top_container_stack())
+                        
+                        # TODO: Create way to add indicators
+                        # dpg.add_line_series(dates, closes)
                     dpg.fit_axis_data(xaxis)
-                
-                with dpg.group(horizontal=True):
-                    dpg.add_button(label="Buy")
-                    dpg.add_button(label="Sell")
 
+
+                with dpg.table(header_row=False, borders_innerH=True, 
+                               borders_outerH=True, borders_innerV=True, 
+                               borders_outerV=True, width=-1):
+                    
+                    # Add two columsn
+                    dpg.add_table_column()
+                    dpg.add_table_column()
+
+                    with dpg.table_row():
+                        dpg.add_selectable(label='Buy')
+                        dpg.add_selectable(label='Sell')
+
+                # dpg.add_input_float(label='Price', width=150)
+                
+
+                with dpg.group(horizontal=False, pos=[1215, self.viewport_height - 127]):
+                    dpg.add_button(label="Buy", width=-1)
+                    dpg.add_button(label="Sell", width=-1)
+            
 
 
 
@@ -160,14 +187,12 @@ class Graphics():
 
 
 
-
-
     def run(self):
         # This is the first step to use the dearpygui library.
         dpg.create_context()
 
         # This is our primary viewport window which we have a menu bar at the top with other window selections.
-        with dpg.window(tag="Main", no_resize=True):
+        with dpg.window(tag="Main", no_resize=True, no_scrollbar=True):
             with dpg.menu_bar():
                 with dpg.menu(label='Charts'):
                     dpg.add_button(label="Open", callback=self.charts_window)
