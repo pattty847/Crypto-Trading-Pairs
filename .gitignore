@@ -6,3 +6,4 @@ __pycache__/
 backtrader_tut.py
 main.py
 test.py
+.gitignore
