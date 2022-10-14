@@ -109,13 +109,17 @@ class Exchange():
 
         # If its on file pull it and update it
         ohlcv = pd.read_csv(file)
+        first_pull_time = ohlcv.iat[0, 0]
         last_pull_time = ohlcv.iat[-1, 0]
-        new_candles = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, last_pull_time, 500), columns=columns)
-        new_candles.drop(new_candles.head(1).index, inplace=True)
-        new_ohlcv = pd.concat([ohlcv, new_candles], ignore_index=True)
-        new_candles.to_csv(file, mode='a', index=False, header=False)
-        return new_ohlcv
-            
+        if first_pull_time > since:
+            new_candles = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, last_pull_time, 500), columns=columns)
+            new_candles.drop(new_candles.head(1).index, inplace=True)
+            new_ohlcv = pd.concat([ohlcv, new_candles], ignore_index=True)
+            new_candles.to_csv(file, mode='a', index=False, header=False)
+            return new_ohlcv
+        
+        # new_candles = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, since, 500), columns=columns)
+        # new_candles.drop(new_candles.head(1).index, inplace=True)
 
 
     def get_candles_from_csv(self, symbol: str, timeframe: str):

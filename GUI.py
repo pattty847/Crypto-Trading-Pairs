@@ -1,5 +1,4 @@
-from cProfile import label
-from subprocess import call
+from genericpath import isfile
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
 import json
@@ -13,12 +12,16 @@ class Graphics():
         self.api = api
         self.do = DoStuff()
         self.tf = '1d'
-        self.viewport_width = 1200
+        self.viewport_width = 1600
         self.viewport_height = 900
 
         self.last_symbol = None
 
         # TODO: Check if settings file is not created yet and if not make one with default settings.
+        if not isfile("settings.json"):
+            #                                                                      use do.gettimepast function
+            format = {"last_ticker": "BTC/USDT", "last_timeframe": "1h", "last_since": "2022-10-01T19:00:00.000Z"}
+            
         with open("settings.json", "r") as jsonFile:
             self.settings = json.load(jsonFile)
 
@@ -46,7 +49,7 @@ class Graphics():
 
     def set_date(self, sender, app_data, user_data):
         print(app_data)
-        self.settings.update({"last_since":app_data})
+        self.update_settings({"last_since":self.do.get_time_in_past(minutes=0, days=app_data['month_day'])})
 
     def refresh_chart(self, sender, app_data, user_data):
         (dates, opens, highs, closes, lows) = self.get_candles()
@@ -61,8 +64,7 @@ class Graphics():
         load_ticker = self.settings["last_ticker"]
         load_timeframe = self.settings["last_timeframe"]
         load_since = self.settings["last_since"]
-        since_ = load_since if isinstance(load_since, str) else self.do.get_time_in_past(minutes=load_since['min'], days=load_since['month_day'])
-        df = self.api.get_candles(load_ticker, load_timeframe, since_)
+        df = self.api.get_candles(load_ticker, load_timeframe, load_since)
 
         dates = list(df['date']/1000)
         opens = list(df['open'])
@@ -93,7 +95,7 @@ class Graphics():
         # Each window is a subset inside the main viewport window.
         # To set this window to fill the viewport add this parameter: tag="name" 
         # Set the primary window at bottom: dpg.set_primary_window("name", True)
-        with dpg.window(label=f"{self.api.name}", width=self.viewport_width - 25, height=self.viewport_height - 75, pos=[5, 25], no_move=True, no_resize=True, no_close=True):
+        with dpg.window(label=f"{self.api.name}", width=self.viewport_width - 25, height=self.viewport_height - 75, pos=[5, 25], no_move=True, no_resize=True, no_close=True, no_scrollbar=True):
 
             with dpg.menu_bar():
 
@@ -131,15 +133,19 @@ class Graphics():
             (dates, opens, highs, closes, lows) = self.get_candles()
 
 
+            with dpg.group(horizontal=True):
+                with dpg.plot(label=f"Symbol:{dpg.get_value(ticker)} | Timeframe: {dpg.get_value(tf)}", tag='chart-title', height=-1, width=1200):
+                    dpg.add_plot_legend()
+                    xaxis = dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag='candle-series-xaxis', time=True)
+                    with dpg.plot_axis(dpg.mvYAxis, label="USD", tag='candle-series-yaxis'):
 
-            with dpg.plot(label=f"Symbol:{dpg.get_value(ticker)} | Timeframe: {dpg.get_value(tf)}", tag='chart-title', height=-1, width=-1):
-                dpg.add_plot_legend()
-                xaxis = dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag='candle-series-xaxis', time=True)
-                with dpg.plot_axis(dpg.mvYAxis, label="USD", tag='candle-series-yaxis'):
-
-                    dpg.add_candle_series(dates, opens, closes, lows, highs, tag='candle-series', time_unit=self.convert_timeframe(dpg.get_value(tf)))
-                    dpg.fit_axis_data(dpg.top_container_stack())
-                dpg.fit_axis_data(xaxis)
+                        dpg.add_candle_series(dates, opens, closes, lows, highs, tag='candle-series', time_unit=self.convert_timeframe(dpg.get_value(tf)))
+                        dpg.fit_axis_data(dpg.top_container_stack())
+                    dpg.fit_axis_data(xaxis)
+                
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label="Buy")
+                    dpg.add_button(label="Sell")
 
 
 
