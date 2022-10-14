@@ -4,6 +4,8 @@ import dearpygui.demo as demo
 import json
 
 from datetime import datetime
+
+from numpy import isin
 from utils.DoStuff import DoStuff
 from Exchange import Exchange
 
@@ -52,6 +54,19 @@ class Graphics():
 
 
 
+    def set_trade_price(self, sender, app_data, user_data):
+        print(app_data)
+
+
+    
+    def update_old_candle(self, dates, opens, closes, highs, lows):
+        dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.convert_timeframe(self.settings['last_timeframe']))
+        dpg.configure_item('chart-title', label=f"Symbol:{self.settings['last_ticker']} | Timeframe: {self.settings['last_timeframe']}")
+        dpg.fit_axis_data('candle-series-yaxis')
+        dpg.fit_axis_data('candle-series-xaxis')
+
+
+
     def refresh_chart(self, sender, app_data, user_data):
         # Loading indicator start stop at end
         # dpg.set_value('loading-symbol', show=True)
@@ -69,7 +84,10 @@ class Graphics():
         load_ticker = self.settings["last_ticker"]
         load_timeframe = self.settings["last_timeframe"]
         load_since = self.settings["last_since"]
-        df = self.api.get_candles(load_ticker, load_timeframe, load_since)
+        print(f'Loading : [ticker: {load_ticker} | timeframe: {load_timeframe} | Since: {load_since}]')
+        df = self.api.get_candles(load_ticker, load_timeframe, load_since, self)
+        if isinstance(df, tuple):
+            return df
 
         dates = list(df['date']/1000)
         opens = list(df['open'])
@@ -128,7 +146,7 @@ class Graphics():
                         year_ = f'1{year}'
                         dates = {'month_day': int(date[2]), 'year':int(year_), 'month':int(date[1])}
                         
-                        since = dpg.add_date_picker(level=dpg.mvDatePickerLevel_Day, label='From', default_value=dates, callback=self.set_date)
+                        dpg.add_date_picker(level=dpg.mvDatePickerLevel_Day, label='From', default_value=dates, callback=self.set_date)
 
                     dpg.add_button(label='Go', callback=self.refresh_chart)
 
@@ -155,24 +173,44 @@ class Graphics():
                     dpg.fit_axis_data(xaxis)
 
 
-                with dpg.table(header_row=False, borders_innerH=True, 
-                               borders_outerH=True, borders_innerV=True, 
-                               borders_outerV=True, width=-1):
-                    
-                    # Add two columsn
-                    dpg.add_table_column()
-                    dpg.add_table_column()
 
-                    with dpg.table_row():
-                        dpg.add_selectable(label='Buy')
-                        dpg.add_selectable(label='Sell')
+                with dpg.group(horizontal=False):
+                    with dpg.collapsing_header(label="Trade", pos=[1215, 50]):
+                        with dpg.tree_node(label="Place Order"):
+                            with dpg.group():
+                                dpg.add_input_float(label="input float", default_value=closes[-1], callback=self.set_trade_price, format="%.06f", width=-1)
 
-                # dpg.add_input_float(label='Price', width=150)
-                
+                            # with dpg.tree_node(label="Basic"):
+                            with dpg.table(header_row=False, borders_innerH=True, 
+                                    borders_outerH=True, borders_innerV=True, 
+                                    borders_outerV=True, width=-1):
+                            
+                                # Add two columsn
+                                dpg.add_table_column()
+                                dpg.add_table_column()
 
-                with dpg.group(horizontal=False, pos=[1215, self.viewport_height - 127]):
-                    dpg.add_button(label="Buy", width=-1)
-                    dpg.add_button(label="Sell", width=-1)
+                                with dpg.table_row(height=50):
+                                    dpg.add_button(label='Buy', height=48, width=-1)
+                                    dpg.add_button(label='Sell', height=48, width=-1)
+                                
+                            with dpg.table(header_row=False, borders_innerH=True, 
+                                    borders_outerH=True, borders_innerV=True, 
+                                    borders_outerV=True, width=-1):
+
+                                dpg.add_table_column()
+
+                                with dpg.table_row(height=50):
+                                    dpg.add_button(label='Cancel', height=48, width=-1)
+
+                        with dpg.tree_node(label="Indicator"):
+                            with dpg.group(horizontal=True):
+                                dpg.add_selectable(label='SMA', width=100)
+                                dpg.add_selectable(label='EMA', width=100)
+                                dpg.add_selectable(label='MACD', width=100)
+                            with dpg.group(horizontal=True):
+                                dpg.add_selectable(label='MACD', width=100)
+                                dpg.add_selectable(label='Wavetrend', width=100)
+                                dpg.add_selectable(label='RSI', width=100)
             
 
 
@@ -203,7 +241,7 @@ class Graphics():
                 with dpg.menu(label="Cointegration"):
                     dpg.add_button(label="Open", callback=self.cointegration)
 
-        dpg.create_viewport(title='Custom Title', width=self.viewport_width, height=self.viewport_height)
+        dpg.create_viewport(title='Custom Title', width=self.viewport_width, height=self.viewport_height, resizable=False)
         dpg.setup_dearpygui()
         dpg.show_viewport()
         dpg.set_primary_window("Main", True)
