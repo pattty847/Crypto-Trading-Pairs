@@ -53,7 +53,7 @@ class Graphics():
         dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.convert_timeframe(self.settings['last_timeframe']))
         dpg.configure_item('chart-title', label=f"Symbol:{self.settings['last_ticker']} | Timeframe: {self.settings['last_timeframe']}")
         dpg.fit_axis_data('candle-series-yaxis')
-        dpg.fit_axis_data('candle-series-yaxis')
+        dpg.fit_axis_data('candle-series-xaxis')
 
 
     def get_candles(self):
@@ -137,14 +137,22 @@ class Graphics():
                 xaxis = dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag='candle-series-xaxis', time=True)
                 with dpg.plot_axis(dpg.mvYAxis, label="USD", tag='candle-series-yaxis'):
 
-                    # TODO: Add check for timeframe and make refresh callback
                     dpg.add_candle_series(dates, opens, closes, lows, highs, tag='candle-series', time_unit=self.convert_timeframe(dpg.get_value(tf)))
                     dpg.fit_axis_data(dpg.top_container_stack())
                 dpg.fit_axis_data(xaxis)
 
 
+
+
     def cointegration(self, sender, app_data, user_data):
-        pass
+        with dpg.window(label=f"Cointegration Heatmap", width=self.viewport_width - 25, height=self.viewport_height - 75, pos=[5, 25], no_move=True, no_resize=True, no_close=True):
+            with dpg.plot(label="Heat Series", no_mouse_pos=True, height=-1, width=-1):
+                dpg.add_plot_axis(dpg.mvXAxis, label="x", lock_min=True, lock_max=True, no_gridlines=True, no_tick_marks=True)
+                with dpg.plot_axis(dpg.mvYAxis, label="y", no_gridlines=True, no_tick_marks=True, lock_min=True, lock_max=True):
+                    score_matrix, pvalue_matrix, pairs = gui.do.find_cointegrated_pairs(api.get_matrix_of_closes(["BTC/USDT", "ETH/USDT", "LINK/USDT"], "4h", gui.settings['last_since']), 0.05)
+                    dpg.add_heat_series(pvalue_matrix, 3, 3)
+
+
 
 
 

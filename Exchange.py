@@ -100,10 +100,6 @@ class Exchange():
         dir_ = f'CSV\\{exch}\\'
         file = f'{dir_}{sym}-{timeframe}.csv'
         since = self.api.parse8601(since)
-        # Get the timeframe in seconds
-        tf = self.api.parse_timeframe(timeframe)
-        # Set the wait time to candle close, because we can't request data for new candle until it closes
-        wait_time = (self.api.milliseconds() - since) / 1000
         if not isdir(dir_):
             mkdir(dir_)
         if not (isfile(file)):
@@ -111,21 +107,15 @@ class Exchange():
             ohlcv.to_csv(file, mode='a', index=False)
             return ohlcv
 
-
-        # TODO: Make it so you can update information in the candles history's past 
-        # This needs to check if since is less than the first date in the CSV because you need to add data to the beginning of the file up to the first date,
-        # and the rest of the data at the end of the file starting at the last date.
-        if (wait_time) < tf:
-            ohlcv = pd.read_csv(file)
-            last_pull_time = ohlcv.iat[-1, 0]
-            new_candles = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, last_pull_time, 500), columns=columns)
-            new_candles.drop(new_candles.head(1).index, inplace=True)
-            new_ohlcv = pd.concat([ohlcv, new_candles], ignore_index=True)
-            new_candles.to_csv(file, mode='a', index=False, header=False)
-            return new_ohlcv
-        df = pd.read_csv(file)
-        df.columns = columns
-        return df
+        # If its on file pull it and update it
+        ohlcv = pd.read_csv(file)
+        last_pull_time = ohlcv.iat[-1, 0]
+        new_candles = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, last_pull_time, 500), columns=columns)
+        new_candles.drop(new_candles.head(1).index, inplace=True)
+        new_ohlcv = pd.concat([ohlcv, new_candles], ignore_index=True)
+        new_candles.to_csv(file, mode='a', index=False, header=False)
+        return new_ohlcv
+            
 
 
     def get_candles_from_csv(self, symbol: str, timeframe: str):
@@ -157,7 +147,7 @@ class Exchange():
         df = pd.DataFrame()
         for ticker in ohlcv.keys():
             df[ticker] = ohlcv[ticker]['close']
-        df.index = ohlcv[df.columns.tolist()[0]]['date']
+        # df.index = ohlcv[df.columns.tolist()[0]]['date']
         return df
 
 

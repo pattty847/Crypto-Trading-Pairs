@@ -37,4 +37,4 @@ class DoStuff():
                 pvalue_matrix[i, j] = pvalue
                 if pvalue < pvalue_filter:
                     pairs.append((keys[i], keys[j]))
-        return score_matrix, pvalue_matrix, pairs
+        return (score_matrix, pvalue_matrix, pairs)
