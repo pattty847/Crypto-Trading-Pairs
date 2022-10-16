@@ -19,9 +19,9 @@ class Graphics():
         self.api = api
         self.do = DoStuff()
         self.t = Treasuries()
-        self.viewport_width = 1600
+        self.viewport_width = 2000
         self.viewport_height = int(self.viewport_width * 0.5625) # 16:9 (9/16 ratio
-        self.side_panel_width = 300
+        self.side_panel_width = 400
 
         self.sma = False
         self.ema = False
@@ -37,6 +37,16 @@ class Graphics():
             with open("settings.json", "r") as jsonFile:
                 self.settings = json.load(jsonFile)
 
+    
+    def searcher(self, searcher, result, search_list):
+        modified_list = []
+        if dpg.get_value(searcher) == "*":
+            modified_list.extend(iter(search_list))
+        if dpg.get_value(searcher).lower():
+            modified_list.extend(item for item in search_list if dpg.get_value(searcher).lower() in item.lower())
+
+        dpg.configure_item(result, items=modified_list)
+
 
     def _hsv_to_rgb(self, h, s, v):
         if s == 0.0: return (v, v, v)
@@ -48,7 +58,6 @@ class Graphics():
         if i == 3: return (255*p, 255*q, 255*v)
         if i == 4: return (255*t, 255*p, 255*v)
         if i == 5: return (255*v, 255*p, 255*q)
-
 
     def update_settings(self, x):
         self.settings.update(x)
@@ -107,25 +116,27 @@ class Graphics():
 
 
     # This function will, at first, update the chart with the latest saved ticker and timeframe. 
-    def update_chart_series(self, sender, app_data, user_data, dates, opens, closes, lows, highs, load_ticker, load_timeframe, update):
+    def update_chart_series(self, sender, app_data, user_data, dates, opens, closes, lows, highs, update):
         if not update:
             dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
-            dpg.configure_item('chart-title', label=f"Symbol:{load_ticker} | Timeframe: {load_timeframe}")
+            dpg.configure_item('chart-title', label=f"Symbol:{self.settings['last_symbol']} | Timeframe: {self.settings['last_timeframe']}")
             dpg.fit_axis_data('candle-series-yaxis')
             dpg.fit_axis_data('candle-series-xaxis')
-            self.update_settings({"last_symbol":load_ticker})
-            self.update_settings({"last_timeframe":load_timeframe})
+            self.update_settings({"last_symbol":self.settings['last_symbol']})
+            self.update_settings({"last_timeframe":self.settings['last_timeframe']})
             print("Chart updated.'")
             return
 
-        candles = self.api.get_candles(dpg.get_value('symbols-listbox'), dpg.get_value('timeframe-listbox'), self.settings['last_since'])
+        symbol = self.settings['last_symbol']
+        timeframe = self.settings['last_timeframe']
+        candles = self.api.get_candles(symbol, timeframe, self.settings['last_since'])
         dates, opens, closes, lows, highs = self.do.candles_to_list(candles)
-        dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
-        dpg.configure_item('chart-title', label=f"Symbol:{load_ticker} | Timeframe: {load_timeframe}")
+        dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(dpg.get_value("timeframe-listbox")))
+        dpg.configure_item('chart-title', label=f"Symbol:{symbol} | Timeframe: {timeframe}")
         dpg.fit_axis_data('candle-series-yaxis')
         dpg.fit_axis_data('candle-series-xaxis')
-        self.update_settings({"last_symbol":load_ticker})
-        self.update_settings({"last_timeframe":load_timeframe})
+        self.update_settings({"last_symbol":symbol})
+        self.update_settings({"last_timeframe":timeframe})
         print("Chart updated.")
         
 
@@ -172,36 +183,43 @@ class Graphics():
         with dpg.group():
             with dpg.child_window(autosize_x=True, height=(self.viewport_height/2), pos=[self.viewport_width - self.side_panel_width, 7]):
                 with dpg.collapsing_header(label="Trade"):
+                    
+                    # dpg.add_text("The last symbol, timeframe, and from date is loaded automatically.\n You must choose an option then press 'Go' at the bottom.")
 
                     with dpg.group(horizontal=True):
-                        dpg.add_text(default_value=self.settings['last_symbol'], tag='symbol-title')
-                        dpg.add_text(default_value=self.settings['last_timeframe'], tag='timeframe-title')
-                        dpg.add_text(default_value=self.settings['last_since'], tag='date-title')
+                        dpg.add_text(default_value=self.settings['last_symbol'], tag='symbol-title', color=[255, 0, 0])
+                        dpg.add_text(default_value=self.settings['last_timeframe'], tag='timeframe-title', color=[0, 255, 0])
+                        dpg.add_text(default_value=self.settings['last_since'], tag='date-title', color=[0, 0, 255])
+
 
                     with dpg.tree_node(label="Favorites"):
                         with dpg.group(horizontal=True):
                             dpg.add_listbox(self.settings['favorite_symbols'], tag='favorite-symbols-listbox', default_value=self.settings['favorite_symbols'][0], width=-1, callback=self.set_symbol, num_items=int(len(self.settings['favorite_symbols']) * 0.33))
 
+
                     with dpg.tree_node(label="Symbol"):
-                        with dpg.group(horizontal=False):
-                            # dpg.add_text("Filter usage:\n"
-                            # "  \"\"               display all lines\n"
-                            # "  \"xxx\"         display lines containing \"xxx\"\n"
-                            # "  \"xxx,yyy\"  display lines containing \"xxx\" or \"yyy\"\n"
-                            # "  \"-xxx\"        hide lines containing \"xxx\"")
-                            dpg.add_input_text(label="Search", filter_key='symbols-filter', callback=lambda s, a: dpg.set_value("symbols-filter", a))
-                            with dpg.filter_set(tag="symbols-filter"):
-                                dpg.add_listbox(self.api.symbols, filter_key='symbols-filter', tag='symbols-listbox', default_value=self.settings['last_symbol'], width=-1, callback=self.set_symbol, num_items=50)
+                        with dpg.group(horizontal=True):
+                            with dpg.group(horizontal=False):
+                                dpg.add_input_text(tag="main_listbox_searcher", hint="Type something ;)", 
+                                    callback=lambda sender, data: self.searcher("main_listbox_searcher", "main_listbox_result", self.api.symbols))
+
+                                dpg.add_listbox(self.api.symbols, tag="main_listbox_result", num_items=2, callback=self.set_symbol)
+
+                            dpg.add_button(label="Add")
 
 
                     with dpg.group(horizontal=True):
                         with dpg.group(horizontal=False):
                             dpg.add_text("Timeframe")
                             dpg.add_listbox(self.api.timeframes, tag='timeframe-listbox', default_value=self.settings['last_timeframe'], width=75, callback=self.set_timeframe, num_items=9)
+
+
                         with dpg.group(horizontal=False):
                             from_ = dpg.add_text("From", color=[0, 255, 0])
+
                             with dpg.tooltip(from_):
-                                dpg.add_text("The calendar shows today's date. The date at the top shows the start of the chart.")
+                                dpg.add_text("The calendar shows today's date. \nThe date at the top shows the start of the chart.")
+
                             date = datetime.today().strftime('%Y-%m-%d').split("-")
                             year = str(int(date[0][2:]))
                             year_ = f'1{year}'
@@ -213,12 +231,12 @@ class Graphics():
                 # Build the chart from the last saved ticker and timeframe
                 candles = self.api.get_candles(self.settings['last_symbol'], self.settings['last_timeframe'], self.settings['last_since'])
                 self.dates, self.opens, self.closes, self.lows, self.highs = self.do.candles_to_list(candles)
-                self.update_chart_series(None, None, None, self.dates, self.opens, self.closes, self.lows, self.highs, self.settings['last_symbol'], self.settings['last_timeframe'], False)
+                self.update_chart_series(None, None, None, self.dates, self.opens, self.closes, self.lows, self.highs, False)
 
                 dpg.add_separator()
 
                 # This button will update the chart when the user clicks it. 
-                dpg.add_button(label="Go", width=-1, callback=lambda a, s, u: self.update_chart_series(a, s, u, None, None, None, None, None, dpg.get_value('symbols-listbox'), dpg.get_value('timeframe-listbox'), True))
+                dpg.add_button(label="Go", width=-1, callback=lambda a, s, u: self.update_chart_series(a, s, u, None, None, None, None, None, True))
                 
 
                 

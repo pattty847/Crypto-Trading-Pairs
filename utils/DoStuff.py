@@ -16,9 +16,8 @@ class DoStuff():
         year_ = str(year)
         y = int(f'20{year_[1:]}') # can't figure it out this will have to do until 2100 or I figure it out
         x = datetime.datetime(y, month, days)
-        y2 = x.strftime("%Y-%m-%dT%H:%M:%S%Z")
-        print(y2)
-        return y2
+        y2 = x.strftime("%Y-%m-%dT%H:%M:%S")
+        return f"{y2}Z"
 
 
     def zscore(self, series):
