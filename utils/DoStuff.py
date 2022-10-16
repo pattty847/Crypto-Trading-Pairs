@@ -1,6 +1,8 @@
 import pandas as pd
 import pandas_ta as pta
 import numpy as np
+import dearpygui.dearpygui as dpg
+
 from statsmodels.tsa.stattools import coint, adfuller
 
 class DoStuff():
@@ -9,14 +11,45 @@ class DoStuff():
         return float((close_values.iat[-1] - close_values.iat[0]) * quantity).__round__(3)
 
 
-    def get_time_in_past(self, minutes: float, days:float):
-        from datetime import datetime, timedelta
-        then = (datetime.now() - timedelta(days = days, minutes=minutes)).strftime("%Y-%m-%d %H:%M:%S").replace(" ", "T")
-        return f'{then}Z'
+    def get_time_in_past(self, days, month, year):
+        import datetime
+        year_ = str(year)
+        y = int(f'20{year_[1:]}') # can't figure it out this will have to do until 2100 or I figure it out
+        x = datetime.datetime(y, month, days)
+        y2 = x.strftime("%Y-%m-%dT%H:%M:%S%Z")
+        print(y2)
+        return y2
 
 
     def zscore(self, series):
         return (series - series.mean()) / pta.stdev(series)
+
+
+
+    def convert_timeframe(self, tf):
+        match (tf[len(tf) - 1]):
+            case 's':
+                return dpg.mvTimeUnit_S
+            case 'm':
+                return dpg.mvTimeUnit_Min
+            case 'h':
+                return dpg.mvTimeUnit_Hr
+            case 'd':
+                return dpg.mvTimeUnit_Day
+            case 'M':
+                return dpg.mvTimeUnit_Mo
+            case _:
+                dpg.mvTimeUnit_Day
+
+
+
+    def candles_to_list(self, candles):
+        dates = list(candles['date']/1000)
+        opens = list(candles['open'])
+        closes = list(candles['close'])
+        lows = list(candles['low'])
+        highs = list(candles['high'])
+        return (dates, opens, closes, lows, highs)
 
 
 

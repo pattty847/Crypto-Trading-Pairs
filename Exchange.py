@@ -22,10 +22,9 @@ class Exchange():
             self.api = getattr(ccxt, exchange)()
             if self.api.name:
                 self.name = self.api.name
-                print(f'{self.api.name} connected.')
+                
             else:
                 self.name = exchange.capitalize
-                print(f'{exchange.capitalize} connected.')
         except ccxt.ExchangeError as e:
             print(f'Error connecting to {exchange.capitalize}')
 
@@ -38,10 +37,14 @@ class Exchange():
             self.symbols = symbols
             mkdir(f'CSV\\{exchange}\\')
             pd.Series(self.symbols).to_csv(f'CSV\\{exchange}\\symbols.txt', index=False)
-
+        print('Symbols imported.')
+        
         # Setting up attributes
         self.api.load_markets()
         self.exchange = exchange
+        self.do = DoStuff()
+        
+        print(f'{self.api.name} connected.')
         
         if self.api.has['fetchOHLCV']:
             self.timeframes = list(self.api.timeframes.keys())
@@ -62,12 +65,12 @@ class Exchange():
                 raise  # Exception('Failed to fetch', timeframe, symbol, 'OHLCV in', max_retries, 'attempts')
 
 
-    def scrape_ohlcv(self, max_retries:int, symbol: str, timeframe: str, since: str, limit: int, to:int=None):
+    def scrape_ohlcv(self, max_retries:int, symbol: str, timeframe: str, since: str, limit: int):
         timeframe_duration_in_seconds = self.api.parse_timeframe(timeframe)
         timeframe_duration_in_ms = timeframe_duration_in_seconds * 1000
         timedelta = limit * timeframe_duration_in_ms
         # This will always be the current time unless updating OLD candles using the TO var where TO is first_pull_time in CSV file
-        now = to if to else self.api.milliseconds()
+        now = self.api.milliseconds()
         all_ohlcv = []
         fetch_since = since
         while fetch_since < now:
@@ -117,51 +120,13 @@ class Exchange():
         last_pull_time = old_candles.iat[-1, 0] # last stored time
 
         # If we are requesting information within the file
-        if first_pull_time < since:
-            new_candles = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, last_pull_time, 500), columns=columns)
-            new_candles.drop(new_candles.head(1).index, inplace=True)
-            new_ohlcv = pd.concat([old_candles, new_candles], ignore_index=True)
-            new_candles.to_csv(file, mode='a', index=False, header=False)
-            return new_ohlcv
 
-        # If we are requesting information before the file has saved
-        
-        return old_candles
+        new_candles = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, last_pull_time, 500), columns=columns)
+        new_candles.drop(new_candles.head(1).index, inplace=True)
+        new_ohlcv = pd.concat([old_candles, new_candles], ignore_index=True)
+        new_candles.to_csv(file, mode='a', index=False, header=False)
+        return new_ohlcv
 
-        # Set ohlcv values for old candles
-        # dates_ = list(old_candles['date']/1000)
-        # opens_ = list(old_candles['open'])
-        # closes_ = list(old_candles['close'])
-        # lows_ = list(old_candles['low'])
-        # highs_ = list(old_candles['high'])
-        # # Push these to chart
-        # gui.update_old_candle(dates_, opens_, highs_, closes_, lows_)
-        # # Pull older candles
-        # new_candles = pd.DataFrame(self.scrape_ohlcv(3, symbol, timeframe, since, 500, first_pull_time, True), columns=columns)
-        # # Add them to beginning of list
-        # dates = list(new_candles['date']/1000)
-        # opens = list(new_candles['open'])
-        # closes = list(new_candles['close'])
-        # lows = list(new_candles['low'])
-        # highs = list(new_candles['high'])
-        # # Push these to chart
-        # gui.update_old_candle(dates, opens, highs, closes, lows)
-        # new_candles.to_csv(file, mode='w', index=False)
-
-        # return (dates, opens, highs, closes, lows)
-
-
-
-        # This is where we update OLD information to file
-        # Pseudo code
-        """ 
-        check if first_pull_time < since
-        set values to candles
-        pull older candles
-        restore them in the CSV file
-        set values to candles
-        refresh axis
-        """
 
 
     def get_candles_from_csv(self, symbol: str, timeframe: str):

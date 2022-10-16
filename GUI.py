@@ -85,7 +85,7 @@ class Graphics():
         load_timeframe = self.settings["last_timeframe"]
         load_since = self.settings["last_since"]
         print(f'Loading : [ticker: {load_ticker} | timeframe: {load_timeframe} | Since: {load_since}]')
-        df = self.api.get_candles(load_ticker, load_timeframe, load_since, self)
+        df = self.api.get_candles(load_ticker, load_timeframe, load_since)
         if isinstance(df, tuple):
             return df
 
@@ -97,22 +97,6 @@ class Graphics():
 
         return (dates, opens, highs, closes, lows)
 
-
-
-    def convert_timeframe(self, tf):
-        match (tf[len(tf) - 1]):
-            case 's':
-                return dpg.mvTimeUnit_S
-            case 'm':
-                return dpg.mvTimeUnit_Min
-            case 'h':
-                return dpg.mvTimeUnit_Hr
-            case 'd':
-                return dpg.mvTimeUnit_Day
-            case 'M':
-                return dpg.mvTimeUnit_Mo
-            case _:
-                dpg.mvTimeUnit_Day
 
 
     # TODO: Start using lambda functions: callback = lambda:dpg.configure_item("tag", show=True, pos=[x, y], etc)
@@ -164,7 +148,6 @@ class Graphics():
                     dpg.add_plot_legend()
                     xaxis = dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag='candle-series-xaxis', time=True)
                     with dpg.plot_axis(dpg.mvYAxis, label="USD", tag='candle-series-yaxis'):
-
                         dpg.add_candle_series(dates, opens, closes, lows, highs, tag='candle-series', time_unit=self.convert_timeframe(dpg.get_value(tf)))
                         dpg.fit_axis_data(dpg.top_container_stack())
                         
