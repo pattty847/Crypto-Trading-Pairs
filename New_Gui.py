@@ -214,10 +214,10 @@ class Graphics():
                     dpg.add_button(label="STOCH", width=75, callback=lambda:self.add_indicator("STOCH"))
                     dpg.add_button(label="MFI", width=75, callback=lambda:self.add_indicator("MFI"))
             with dpg.collapsing_header(label="Settings"):
-                with dpg.group(horizontal=True):
-                    dpg.add_text("Node 1")
-                    dpg.add_text("Node 2")
-                    dpg.add_text("Node 3")
+                with dpg.group(horizontal=False):
+                    dpg.add_button(label="Gui Settings", width=-1, callback=lambda a, s, u: dpg.show_style_editor())
+                    dpg.add_button(label="Gui Settings", width=-1, callback=lambda a, s, u: dpg.show_style_editor())
+                    dpg.add_button(label="Gui Settings", width=-1, callback=lambda a, s, u: dpg.show_style_editor())
             
 
 
