@@ -40,7 +40,7 @@ class Exchange():
         print('Symbols imported.')
         
         # Setting up attributes
-        self.api.load_markets()
+        # self.api.load_markets()
         self.exchange = exchange
         self.do = DoStuff()
         
