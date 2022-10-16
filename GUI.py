@@ -1,7 +1,11 @@
 from genericpath import isfile
+from subprocess import call
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
 import json
+import pandas as pd
+import pandas_ta as ta
+import math
 
 from datetime import datetime
 
@@ -13,19 +17,35 @@ class Graphics():
     def __init__(self, api):
         self.api = api
         self.do = DoStuff()
-        self.tf = '1d'
         self.viewport_width = 1600
-        self.viewport_height = 900
+        self.viewport_height = int(self.viewport_width * 0.5625) # 16:9 (9/16 ratio
+        self.side_panel_width = 300
 
-        self.last_symbol = None
+        self.sma = False
+        self.ema = False
 
-        # TODO: Check if settings file is not created yet and if not make one with default settings.
+        # Checks if settings file is there if not makes it and sets default into
         if not isfile("settings.json"):
-            #                                                                      use do.gettimepast function
-            format = {"last_ticker": "BTC/USDT", "last_timeframe": "1h", "last_since": "2022-10-01T19:00:00.000Z"}
-            
-        with open("settings.json", "r") as jsonFile:
-            self.settings = json.load(jsonFile)
+            month_ago = self.do.get_time_in_past(0, 30)
+            setting_init = {"last_symbol": "BTC/USDT", "last_timeframe": "1h", "last_since": month_ago, "favorite_symbols": ["BTC/USDT", "ETH/USDT", "LINK/USDT", "SOL/USDT"]}
+            self.settings = setting_init
+            with open("settings.json", "w") as settings_file:
+                json.dump(setting_init, settings_file)
+        else:
+            with open("settings.json", "r") as jsonFile:
+                self.settings = json.load(jsonFile)
+
+
+    def _hsv_to_rgb(self, h, s, v):
+        if s == 0.0: return (v, v, v)
+        i = int(h*6.) # XXX assume int() truncates!
+        f = (h*6.)-i; p,q,t = v*(1.-s), v*(1.-s*f), v*(1.-s*(1.-f)); i%=6
+        if i == 0: return (255*v, 255*t, 255*p)
+        if i == 1: return (255*q, 255*v, 255*p)
+        if i == 2: return (255*p, 255*v, 255*t)
+        if i == 3: return (255*p, 255*q, 255*v)
+        if i == 4: return (255*t, 255*p, 255*v)
+        if i == 5: return (255*v, 255*p, 255*q)
 
 
     def update_settings(self, x):
@@ -33,196 +53,190 @@ class Graphics():
         with open("settings.json", "w") as jsonFile:
             json.dump(self.settings, jsonFile)
 
-
-    def set_ticker(self, sender, app_data, user_data):
-        dpg.configure_item('ticker-listbox', label = app_data)
-        x = {"last_ticker":app_data}
+    def set_symbol(self, sender, app_data, user_data):
+        dpg.set_value('symbol-title', app_data)
+        x = {"last_symbol":app_data}
         self.update_settings(x)
 
-
-
     def set_timeframe(self, sender, app_data, user_data):
-        dpg.configure_item('timeframe-listbox', label = app_data)
+        dpg.set_value('timeframe-title', app_data)
         x = {"last_timeframe":app_data}
         self.update_settings(x)
 
-
+    def set_period(self, sender, app_data, user_data):
+        x = {"last_timeframe":app_data}
+        self.update_settings(x)
 
     def set_date(self, sender, app_data, user_data):
         print(app_data)
-        self.update_settings({"last_since":self.do.get_time_in_past(minutes=0, days=app_data['month_day'])})
+        date = self.do.get_time_in_past(days=app_data['month_day'], month=app_data['month'], year=app_data['year'])
+        last_since = {"last_since":date}
+        dpg.set_value('date-title', date)
+        self.update_settings(last_since)
+
+    def add_indicator(self, indicator):
+        ohlcv = {"dates":self.dates, "opens":self.opens, "closes":self.closes, "lows":self.lows, "highs":self.highs}
+        df = pd.DataFrame(ohlcv)
+        if indicator == 'SMA':
+            sma = ta.sma(df['closes'], 14).dropna()
+            dpg.add_line_series(self.dates[-len(sma):], sma.tolist(), parent='candle-series-yaxis', tag='SMA-chart')
+            dpg.fit_axis_data('candle-series-yaxis')
+            dpg.fit_axis_data('candle-series-xaxis')
+        if indicator == 'EMA':
+            ema = ta.ema(df['closes'], 14).dropna()
+            dpg.add_line_series(self.dates[-len(ema):], ema.tolist(), parent='candle-series-yaxis', tag='EMA-chart')
+            dpg.fit_axis_data('candle-series-yaxis')
+            dpg.fit_axis_data('candle-series-xaxis')
+        if indicator == "RSI":
+            rsi = ta.rsi(df['closes'], 20).dropna()
+            dpg.add_line_series(self.dates[-len(rsi):], rsi.tolist(), parent='candle-series-yaxis', tag='RSI-chart')
+            dpg.fit_axis_data('candle-series-yaxis')
+            dpg.fit_axis_data('candle-series-xaxis')
 
 
 
-    def set_trade_price(self, sender, app_data, user_data):
-        print(app_data)
+    # This function will, at first, update the chart with the latest saved ticker and timeframe. 
+    def update_chart_series(self, sender, app_data, user_data, dates, opens, closes, lows, highs, load_ticker, load_timeframe, update):
+        if not update:
+            dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
+            dpg.configure_item('chart-title', label=f"Symbol:{load_ticker} | Timeframe: {load_timeframe}")
+            dpg.fit_axis_data('candle-series-yaxis')
+            dpg.fit_axis_data('candle-series-xaxis')
+            self.update_settings({"last_symbol":load_ticker})
+            self.update_settings({"last_timeframe":load_timeframe})
+            print("Chart updated.'")
+            return
 
-
-    
-    def update_old_candle(self, dates, opens, closes, highs, lows):
-        dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.convert_timeframe(self.settings['last_timeframe']))
-        dpg.configure_item('chart-title', label=f"Symbol:{self.settings['last_ticker']} | Timeframe: {self.settings['last_timeframe']}")
+        candles = self.api.get_candles(dpg.get_value('symbols-listbox'), dpg.get_value('timeframe-listbox'), self.settings['last_since'])
+        dates, opens, closes, lows, highs = self.do.candles_to_list(candles)
+        dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
+        dpg.configure_item('chart-title', label=f"Symbol:{load_ticker} | Timeframe: {load_timeframe}")
         dpg.fit_axis_data('candle-series-yaxis')
         dpg.fit_axis_data('candle-series-xaxis')
+        self.update_settings({"last_symbol":load_ticker})
+        self.update_settings({"last_timeframe":load_timeframe})
+        print("Chart updated.")
+        
 
 
 
-    def refresh_chart(self, sender, app_data, user_data):
-        # Loading indicator start stop at end
-        # dpg.set_value('loading-symbol', show=True)
-        (dates, opens, highs, closes, lows) = self.get_candles()
-        dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.convert_timeframe(self.settings['last_timeframe']))
-        dpg.configure_item('chart-title', label=f"Symbol:{self.settings['last_ticker']} | Timeframe: {self.settings['last_timeframe']}")
-        dpg.fit_axis_data('candle-series-yaxis')
-        dpg.fit_axis_data('candle-series-xaxis')
-        # dpg.set_value('loading-symbol', show=False)
+    def chart(self):
+        with dpg.child_window(width=self.viewport_width - self.side_panel_width - 15, height=-1):
+            with dpg.tab_bar():        
+                with dpg.tab(label="Cadlestick"):
 
 
+                    # label=f"Symbol:{dpg.get_value(ticker)} | Timeframe: {dpg.get_value(tf)}", tag='chart-title', height=-1, width=1200
+                    with dpg.plot(label=f"Symbol:{self.settings['last_symbol']} | Timeframe: {self.settings['last_timeframe']}", tag='chart-title', height=-1, width=self.viewport_width - self.side_panel_width - 5):
+                        dpg.add_plot_legend()
+                        dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag='candle-series-xaxis', time=True)
+                        with dpg.plot_axis(dpg.mvYAxis, label="USD", tag='candle-series-yaxis'):
+                            dpg.add_candle_series([], [], [], [], [], tag='candle-series', time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
+                            dpg.fit_axis_data(dpg.top_container_stack())                
 
-    def get_candles(self):
-        # By this function call the settings for each of these vars should be initialized and not empty.
-        load_ticker = self.settings["last_ticker"]
-        load_timeframe = self.settings["last_timeframe"]
-        load_since = self.settings["last_since"]
-        print(f'Loading : [ticker: {load_ticker} | timeframe: {load_timeframe} | Since: {load_since}]')
-        df = self.api.get_candles(load_ticker, load_timeframe, load_since)
-        if isinstance(df, tuple):
-            return df
+                with dpg.tab(tag='cointegration', label="Cointegration"):
+                    dpg.add_text("This is the broccoli tab!")
 
-        dates = list(df['date']/1000)
-        opens = list(df['open'])
-        closes = list(df['close'])
-        lows = list(df['low'])
-        highs = list(df['high'])
-
-        return (dates, opens, highs, closes, lows)
-
-
-
-    # TODO: Start using lambda functions: callback = lambda:dpg.configure_item("tag", show=True, pos=[x, y], etc)
-
-    def charts_window(self, sender, app_data, user_data):
-        # Each window is a subset inside the main viewport window.
-        # To set this window to fill the viewport add this parameter: tag="name" 
-        # Set the primary window at bottom: dpg.set_primary_window("name", True)
-        with dpg.window(label=f"{self.api.name}", width=self.viewport_width - 25, height=self.viewport_height - 75, pos=[5, 25], no_move=True, no_resize=True, no_scrollbar=True):
-
-            with dpg.menu_bar():
-
-                if self.api.api.has['fetchOHLCV']:
+                with dpg.tab(label="Demo"):
+                    dpg.add_button(label='Start Demo', callback=lambda:self.demo())
                     
-                    # TODO: Finish this
-                    # with dpg.menu(label="Exchange"):
-                    #     dpg.add_listbox(self.api.symbols, callback = self.callback)
-                    # Set default values to last ticker, timeframe, and date that was open.
+
+    def trade(self): 
+        with dpg.group():
+            with dpg.child_window(autosize_x=True, height=(self.viewport_height/2), pos=[self.viewport_width - self.side_panel_width, 7]):
+                with dpg.collapsing_header(label="Trade"):
+
+                    with dpg.group(horizontal=True):
+                        dpg.add_text(default_value=self.settings['last_symbol'], tag='symbol-title')
+                        dpg.add_text(default_value=self.settings['last_timeframe'], tag='timeframe-title')
+                        dpg.add_text(default_value=self.settings['last_since'], tag='date-title')
+
+                    with dpg.tree_node(label="Favorites"):
+                        with dpg.group(horizontal=True):
+                            dpg.add_listbox(self.settings['favorite_symbols'], tag='favorite-symbols-listbox', default_value=self.settings['favorite_symbols'][0], width=-1, callback=self.set_symbol, num_items=int(len(self.settings['favorite_symbols']) * 0.33))
+
+                    with dpg.tree_node(label="Symbol"):
+                        with dpg.group(horizontal=False):
+                            # dpg.add_text("Filter usage:\n"
+                            # "  \"\"               display all lines\n"
+                            # "  \"xxx\"         display lines containing \"xxx\"\n"
+                            # "  \"xxx,yyy\"  display lines containing \"xxx\" or \"yyy\"\n"
+                            # "  \"-xxx\"        hide lines containing \"xxx\"")
+                            dpg.add_input_text(label="Search", filter_key='symbols-filter', callback=lambda s, a: dpg.set_value("symbols-filter", a))
+                            with dpg.filter_set(tag="symbols-filter"):
+                                dpg.add_listbox(self.api.symbols, filter_key='symbols-filter', tag='symbols-listbox', default_value=self.settings['last_symbol'], width=-1, callback=self.set_symbol, num_items=50)
 
 
-                    with dpg.menu(label="Ticker"):
-                        # Default value checks for ticker stored in settings which is stored before user closes the program. 
-                        ticker = dpg.add_listbox(self.api.symbols, tag='ticker-listbox', num_items = 20, callback = self.set_ticker, default_value=self.settings['last_ticker'] if self.settings['last_ticker'] != "" else "BTC/USDT", label=f"({self.settings['last_ticker']})")
-
-                    with dpg.menu(label="Timeframe"):
-                        tf = dpg.add_listbox(self.api.timeframes, tag='timeframe-listbox', num_items = 10, width=50, callback = self.set_timeframe, default_value=self.settings['last_timeframe'], label=f"({self.settings['last_timeframe']})")
-
-                    with dpg.menu(label="Date"):
-                        date = datetime.today().strftime('%Y-%m-%d').split("-")
-                        year = str(int(date[0][2:]))
-                        year_ = f'1{year}'
-                        dates = {'month_day': int(date[2]), 'year':int(year_), 'month':int(date[1])}
-                        
-                        dpg.add_date_picker(level=dpg.mvDatePickerLevel_Day, label='From', default_value=dates, callback=self.set_date)
-
-                    dpg.add_button(label='Go', callback=self.refresh_chart)
-
-
-                else:
-
-                    dpg.add_text(f'{self.api.name} does not have candlesticks available.')
-                    return
-                    
-            (dates, opens, highs, closes, lows) = self.get_candles()
-
-
-            with dpg.group(horizontal=True):
-                with dpg.plot(label=f"Symbol:{dpg.get_value(ticker)} | Timeframe: {dpg.get_value(tf)}", tag='chart-title', height=-1, width=1200):
-                    dpg.add_plot_legend()
-                    xaxis = dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag='candle-series-xaxis', time=True)
-                    with dpg.plot_axis(dpg.mvYAxis, label="USD", tag='candle-series-yaxis'):
-                        dpg.add_candle_series(dates, opens, closes, lows, highs, tag='candle-series', time_unit=self.convert_timeframe(dpg.get_value(tf)))
-                        dpg.fit_axis_data(dpg.top_container_stack())
-                        
-                        # TODO: Create way to add indicators
-                        # dpg.add_line_series(dates, closes)
-                    dpg.fit_axis_data(xaxis)
-
-
-
-                with dpg.group(horizontal=False):
-                    with dpg.collapsing_header(label="Trade", pos=[1215, 50]):
-                        with dpg.tree_node(label="Place Order"):
-                            with dpg.group():
-                                dpg.add_input_float(label="input float", default_value=closes[-1], callback=self.set_trade_price, format="%.06f", width=-1)
-
-                            # with dpg.tree_node(label="Basic"):
-                            with dpg.table(header_row=False, borders_innerH=True, 
-                                    borders_outerH=True, borders_innerV=True, 
-                                    borders_outerV=True, width=-1):
+                    with dpg.group(horizontal=True):
+                        with dpg.group(horizontal=False):
+                            dpg.add_text("Timeframe")
+                            dpg.add_listbox(self.api.timeframes, tag='timeframe-listbox', default_value=self.settings['last_timeframe'], width=75, callback=self.set_timeframe, num_items=9)
+                        with dpg.group(horizontal=False):
+                            dpg.add_text("From")
+                            date = datetime.today().strftime('%Y-%m-%d').split("-")
+                            year = str(int(date[0][2:]))
+                            year_ = f'1{year}'
+                            dates = {'month_day': int(date[2]), 'year':int(year_), 'month':int(date[1])}
                             
-                                # Add two columsn
-                                dpg.add_table_column()
-                                dpg.add_table_column()
+                            dpg.add_date_picker(level=dpg.mvDatePickerLevel_Day, label='From', default_value=dates, callback=self.set_date)
+                
 
-                                with dpg.table_row(height=50):
-                                    dpg.add_button(label='Buy', height=48, width=-1)
-                                    dpg.add_button(label='Sell', height=48, width=-1)
-                                
-                            with dpg.table(header_row=False, borders_innerH=True, 
-                                    borders_outerH=True, borders_innerV=True, 
-                                    borders_outerV=True, width=-1):
+                # Build the chart from the last saved ticker and timeframe
+                candles = self.api.get_candles(self.settings['last_symbol'], self.settings['last_timeframe'], self.settings['last_since'])
+                self.dates, self.opens, self.closes, self.lows, self.highs = self.do.candles_to_list(candles)
+                self.update_chart_series(None, None, None, self.dates, self.opens, self.closes, self.lows, self.highs, self.settings['last_symbol'], self.settings['last_timeframe'], False)
 
-                                dpg.add_table_column()
+                dpg.add_separator()
 
-                                with dpg.table_row(height=50):
-                                    dpg.add_button(label='Cancel', height=48, width=-1)
+                # This button will update the chart when the user clicks it. 
+                dpg.add_button(label="Go", width=-1, callback=lambda a, s, u: self.update_chart_series(a, s, u, None, None, None, None, None, dpg.get_value('symbols-listbox'), dpg.get_value('timeframe-listbox'), True))
+                
 
-                        with dpg.tree_node(label="Indicator"):
-                            with dpg.group(horizontal=True):
-                                dpg.add_selectable(label='SMA', width=100)
-                                dpg.add_selectable(label='EMA', width=100)
-                                dpg.add_selectable(label='MACD', width=100)
-                            with dpg.group(horizontal=True):
-                                dpg.add_selectable(label='MACD', width=100)
-                                dpg.add_selectable(label='Wavetrend', width=100)
-                                dpg.add_selectable(label='RSI', width=100)
+                
+                with dpg.group(horizontal=True):
+                    # step will need to equal exchange min order size
+                    dpg.add_input_float(tag='limit-price', label="Limit Price", width=115, step=0, step_fast=0, callback=lambda:print(dpg.get_value('limit-price')), format="%.04f")
+                
+                with dpg.group(horizontal=True):
+                    dpg.add_button(tag='limit', label="Limit", width=115)
+                    # dpg.add_theme_color("limit", self._hsv_to_rgb(2/7.0, 0.6, 0.6))
+                    dpg.add_button(label="Market", width=-1)
+
+
+        with dpg.child_window(autosize_x=True, height=-1, pos=[self.viewport_width - self.side_panel_width, self.viewport_height/2+5]):
+            with dpg.collapsing_header(label="Indicators"):
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label="SMA", width=75, callback=lambda:self.add_indicator("SMA"))
+                    dpg.add_button(label="EMA", width=75, callback=lambda:self.add_indicator("EMA"))
+                    dpg.add_button(label="RSI", width=75, callback=lambda:self.add_indicator("RSI"))
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("SMA-chart", show=False), tag='sma-del')
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("EMA-chart", show=False), tag='ema-del')
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("RSI-chart", show=False), tag='rsi-del')
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label="MACD", width=75, callback=lambda:self.add_indicator("MACD"))
+                    dpg.add_button(label="STOCH", width=75, callback=lambda:self.add_indicator("STOCH"))
+                    dpg.add_button(label="MFI", width=75, callback=lambda:self.add_indicator("MFI"))
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("MACD-chart", show=False), tag='macd-del')
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("STOCH-chart", show=False), tag='stoch-del')
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("MFI-chart", show=False), tag='mfi-del')
+            with dpg.collapsing_header(label="Settings"):
+                with dpg.group(horizontal=False):
+                    dpg.add_button(label="Gui Settings", width=-1, callback=lambda a, s, u: dpg.show_style_editor())
+                    dpg.add_button(label="Gui Settings", width=-1, callback=lambda a, s, u: dpg.show_style_editor())
+                    dpg.add_button(label="Gui Settings", width=-1, callback=lambda a, s, u: dpg.show_style_editor())
             
 
 
-
-    def cointegration(self, sender, app_data, user_data):
-        with dpg.window(label=f"Cointegration Heatmap", width=self.viewport_width - 25, height=self.viewport_height - 75, pos=[5, 25], no_move=True, no_resize=True, no_close=True):
-            with dpg.plot(label="Heat Series", no_mouse_pos=True, height=-1, width=-1):
-                dpg.add_plot_axis(dpg.mvXAxis, label="x", lock_min=True, lock_max=True, no_gridlines=True, no_tick_marks=True)
-                with dpg.plot_axis(dpg.mvYAxis, label="y", no_gridlines=True, no_tick_marks=True, lock_min=True, lock_max=True):
-                    score_matrix, pvalue_matrix, pairs = gui.do.find_cointegrated_pairs(api.get_matrix_of_closes(["BTC/USDT", "ETH/USDT", "LINK/USDT"], "4h", gui.settings['last_since']), 0.05)
-                    dpg.add_heat_series(pvalue_matrix, 3, 3)
-
-
-
-    def run(self):
+    def set_up(self):
         # This is the first step to use the dearpygui library.
         dpg.create_context()
 
-        # This is our primary viewport window which we have a menu bar at the top with other window selections.
         with dpg.window(tag="Main", no_resize=True, no_scrollbar=True):
-            with dpg.menu_bar():
-                with dpg.menu(label='Charts'):
-                    dpg.add_button(label="Open", callback=self.charts_window)
+            self.chart()
+            self.trade()
 
-                with dpg.menu(label='Demo'):
-                    dpg.add_button(label="Open", callback=self.demo)
-
-                with dpg.menu(label="Cointegration"):
-                    dpg.add_button(label="Open", callback=self.cointegration)
 
         dpg.create_viewport(title='Custom Title', width=self.viewport_width, height=self.viewport_height, resizable=False)
         dpg.setup_dearpygui()
@@ -230,20 +244,12 @@ class Graphics():
         dpg.set_primary_window("Main", True)
         dpg.start_dearpygui()
 
-        # below replaces, start_dearpygui()
-        # while dpg.is_dearpygui_running():
-        #     # insert here any code you would like to run in the render loop
-        #     # you can manually stop by using stop_dearpygui()
-        #     print("this will run every frame")
-        #     dpg.render_dearpygui_frame()
-
         dpg.destroy_context()
-
 
 
     def demo(self):
         demo.show_demo()
 
-api = Exchange("ftx")
-gui = Graphics(api)
-gui.run()
+ftx = Exchange("ftx")
+gui = Graphics(ftx)
+gui.set_up()
