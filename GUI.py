@@ -70,15 +70,20 @@ class Graphics():
         self.update_settings(x)
 
     def set_date(self, sender, app_data, user_data):
-        print(app_data)
         date = self.do.get_time_in_past(days=app_data['month_day'], month=app_data['month'], year=app_data['year'])
         last_since = {"last_since":date}
         dpg.set_value('date-title', date)
         self.update_settings(last_since)
 
-    def get_interest_rates(self):
-        df = self.t.avg_interest_rates()
-        return df
+    def get_interest_rates(self, sender, app_data, user_data):
+        with dpg.table(header_row=False, parent="treasury-info"):
+            df = self.t.avg_interest_rates()
+            for i in range(df.shape[1]):
+                dpg.add_table_column(label=df.columns[i])
+            for i in range(df.shape[0]):
+                with dpg.table_row():
+                    for j in range(df.shape[1]):
+                        dpg.add_text(f"{df.iloc[i, j]}")
 
     def add_indicator(self, indicator):
         ohlcv = {"dates":self.dates, "opens":self.opens, "closes":self.closes, "lows":self.lows, "highs":self.highs}
@@ -144,21 +149,14 @@ class Graphics():
                     with dpg.plot(label="Heat Series", no_mouse_pos=True, height=-1, width=-1):
                         dpg.add_plot_axis(dpg.mvXAxis, label="x", lock_min=True, lock_max=True, no_gridlines=True, no_tick_marks=True)
                         with dpg.plot_axis(dpg.mvYAxis, label="y", no_gridlines=True, no_tick_marks=True, lock_min=True, lock_max=True):
-                            score_matrix, pvalue_matrix, pairs = gui.do.find_cointegrated_pairs(self.api.get_matrix_of_closes(["BTC/USDT", "ETH/USDT", "LINK/USDT", "ATOM/USDT", "SUSHI/USDT"], "4h", gui.settings['last_since']), 0.05)
-                            dpg.add_heat_series(pvalue_matrix, 5, 5)
+                            # score_matrix, pvalue_matrix, pairs = gui.do.find_cointegrated_pairs(self.api.get_matrix_of_closes(["BTC/USDT", "ETH/USDT", "LINK/USDT", "ATOM/USDT", "SUSHI/USDT"], "4h", gui.settings['last_since']), 0.05)
+                            # dpg.add_heat_series(pvalue_matrix, 5, 5)
+                            pass
                             
 
-                with dpg.tab(label="Treasury Info"):
-                    dpg.add_button(label='Average Interest Rates', callback=lambda:self.add_interest_rates)
-                    # basic usage of the table api
-                    with dpg.table(header_row=False):
-                        df = self.get_interest_rates()
-                        for i in range(df.shape[1]):
-                            dpg.add_table_column(label=df.columns[i])
-                        for i in range(df.shape[0]):
-                            with dpg.table_row():
-                                for j in range(df.shape[1]):
-                                    dpg.add_text(f"{df.iloc[i, j]}")
+                with dpg.tab(label="Treasury Info", tag="treasury-info"):
+                    dpg.add_button(label='Average Interest Rates', callback=lambda s, a, u:self.get_interest_rates(s, a, u))
+
                     with dpg.collapsing_header(label="Chart"):
                         with dpg.plot(label=f"Symbol: Interest Rates", tag='interest-title', height=-1, width=self.viewport_width - self.side_panel_width - 5):
                             dpg.add_plot_legend()
