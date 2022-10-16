@@ -10,6 +10,7 @@ import math
 from datetime import datetime
 
 from numpy import isin
+from Treasuries import Treasuries
 from utils.DoStuff import DoStuff
 from Exchange import Exchange
 
@@ -17,6 +18,7 @@ class Graphics():
     def __init__(self, api):
         self.api = api
         self.do = DoStuff()
+        self.t = Treasuries()
         self.viewport_width = 1600
         self.viewport_height = int(self.viewport_width * 0.5625) # 16:9 (9/16 ratio
         self.side_panel_width = 300
@@ -74,24 +76,28 @@ class Graphics():
         dpg.set_value('date-title', date)
         self.update_settings(last_since)
 
+    def get_interest_rates(self):
+        df = self.t.avg_interest_rates()
+        return df
+
     def add_indicator(self, indicator):
         ohlcv = {"dates":self.dates, "opens":self.opens, "closes":self.closes, "lows":self.lows, "highs":self.highs}
         df = pd.DataFrame(ohlcv)
+
         if indicator == 'SMA':
             sma = ta.sma(df['closes'], 14).dropna()
             dpg.add_line_series(self.dates[-len(sma):], sma.tolist(), parent='candle-series-yaxis', tag='SMA-chart')
-            dpg.fit_axis_data('candle-series-yaxis')
-            dpg.fit_axis_data('candle-series-xaxis')
+            
+
         if indicator == 'EMA':
             ema = ta.ema(df['closes'], 14).dropna()
             dpg.add_line_series(self.dates[-len(ema):], ema.tolist(), parent='candle-series-yaxis', tag='EMA-chart')
-            dpg.fit_axis_data('candle-series-yaxis')
-            dpg.fit_axis_data('candle-series-xaxis')
+
+
         if indicator == "RSI":
             rsi = ta.rsi(df['closes'], 20).dropna()
             dpg.add_line_series(self.dates[-len(rsi):], rsi.tolist(), parent='candle-series-yaxis', tag='RSI-chart')
-            dpg.fit_axis_data('candle-series-yaxis')
-            dpg.fit_axis_data('candle-series-xaxis')
+
 
 
 
@@ -135,7 +141,30 @@ class Graphics():
                             dpg.fit_axis_data(dpg.top_container_stack())                
 
                 with dpg.tab(tag='cointegration', label="Cointegration"):
-                    dpg.add_text("This is the broccoli tab!")
+                    with dpg.plot(label="Heat Series", no_mouse_pos=True, height=-1, width=-1):
+                        dpg.add_plot_axis(dpg.mvXAxis, label="x", lock_min=True, lock_max=True, no_gridlines=True, no_tick_marks=True)
+                        with dpg.plot_axis(dpg.mvYAxis, label="y", no_gridlines=True, no_tick_marks=True, lock_min=True, lock_max=True):
+                            score_matrix, pvalue_matrix, pairs = gui.do.find_cointegrated_pairs(self.api.get_matrix_of_closes(["BTC/USDT", "ETH/USDT", "LINK/USDT", "ATOM/USDT", "SUSHI/USDT"], "4h", gui.settings['last_since']), 0.05)
+                            dpg.add_heat_series(pvalue_matrix, 5, 5)
+                            
+
+                with dpg.tab(label="Treasury Info"):
+                    dpg.add_button(label='Average Interest Rates', callback=lambda:self.add_interest_rates)
+                    # basic usage of the table api
+                    with dpg.table(header_row=False):
+                        df = self.get_interest_rates()
+                        for i in range(df.shape[1]):
+                            dpg.add_table_column(label=df.columns[i])
+                        for i in range(df.shape[0]):
+                            with dpg.table_row():
+                                for j in range(df.shape[1]):
+                                    dpg.add_text(f"{df.iloc[i, j]}")
+                    with dpg.collapsing_header(label="Chart"):
+                        with dpg.plot(label=f"Symbol: Interest Rates", tag='interest-title', height=-1, width=self.viewport_width - self.side_panel_width - 5):
+                            dpg.add_plot_legend()
+                            dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag='interest-series-xaxis', time=True)
+                            with dpg.plot_axis(dpg.mvYAxis, label="USD", tag='interest-series-yaxis'):
+                                pass
 
                 with dpg.tab(label="Demo"):
                     dpg.add_button(label='Start Demo', callback=lambda:self.demo())
@@ -172,7 +201,9 @@ class Graphics():
                             dpg.add_text("Timeframe")
                             dpg.add_listbox(self.api.timeframes, tag='timeframe-listbox', default_value=self.settings['last_timeframe'], width=75, callback=self.set_timeframe, num_items=9)
                         with dpg.group(horizontal=False):
-                            dpg.add_text("From")
+                            from_ = dpg.add_text("From", color=[0, 255, 0])
+                            with dpg.tooltip(from_):
+                                dpg.add_text("The calendar shows today's date. The date at the top shows the start of the chart.")
                             date = datetime.today().strftime('%Y-%m-%d').split("-")
                             year = str(int(date[0][2:]))
                             year_ = f'1{year}'
@@ -210,17 +241,17 @@ class Graphics():
                     dpg.add_button(label="EMA", width=75, callback=lambda:self.add_indicator("EMA"))
                     dpg.add_button(label="RSI", width=75, callback=lambda:self.add_indicator("RSI"))
                 with dpg.group(horizontal=True):
-                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("SMA-chart", show=False), tag='sma-del')
-                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("EMA-chart", show=False), tag='ema-del')
-                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("RSI-chart", show=False), tag='rsi-del')
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.delete_item("SMA-chart"), tag='sma-del')
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.delete_item("EMA-chart"), tag='ema-del')
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.delete_item("RSI-chart"), tag='rsi-del')
                 with dpg.group(horizontal=True):
                     dpg.add_button(label="MACD", width=75, callback=lambda:self.add_indicator("MACD"))
                     dpg.add_button(label="STOCH", width=75, callback=lambda:self.add_indicator("STOCH"))
                     dpg.add_button(label="MFI", width=75, callback=lambda:self.add_indicator("MFI"))
                 with dpg.group(horizontal=True):
-                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("MACD-chart", show=False), tag='macd-del')
-                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("STOCH-chart", show=False), tag='stoch-del')
-                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.configure_item("MFI-chart", show=False), tag='mfi-del')
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.delete_item("MACD-chart"), tag='macd-del')
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.delete_item("STOCH-chart"), tag='stoch-del')
+                    dpg.add_button(label="Delete", width=75, callback=lambda:dpg.delete_item("MFI-chart"), tag='mfi-del')
             with dpg.collapsing_header(label="Settings"):
                 with dpg.group(horizontal=False):
                     dpg.add_button(label="Gui Settings", width=-1, callback=lambda a, s, u: dpg.show_style_editor())
