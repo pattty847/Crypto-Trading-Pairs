@@ -17,7 +17,6 @@ class Treasuries():
         avg_interest_rates_ = f"{self.base_url}{self.endpoints['avg_interest_rates']}?fields={fields}&filter={filter_by}&page[size]=1000"
         resp = requests.get(avg_interest_rates_).json()
         df = pd.DataFrame(resp['data'])
-        print(df)
         return df
 
     def debt_to_penny(self):
@@ -40,5 +39,4 @@ class Treasuries():
         return df
 
 t = Treasuries()
-df = t.avg_interest_rates()
-df.to_csv("avg_interest_rates.csv")
+

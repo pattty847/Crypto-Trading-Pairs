@@ -8,6 +8,7 @@ import dearpygui.dearpygui as dpg
 import ccxt as ccxt
 import pandas as pd
 import os
+import csv
 
 
 class Exchange():
@@ -32,7 +33,10 @@ class Exchange():
         try:
             self.symbols = open(f'CSV\\{exchange}\\symbols.txt', "r").read().splitlines()
         except FileNotFoundError as e:
-            symbols = [x for x in self.api.fetch_tickers().items()]
+            if self.api.id == "binance":
+                symbols = self.api.symbols
+            elif self.api.id == "ftx":
+                symbols = [x for x in self.api.fetch_tickers().items()]
             # If not grab the symbols from the API and store them for quick loading next time. 
             self.symbols = symbols
             mkdir(f'CSV\\{exchange}\\')
@@ -127,6 +131,42 @@ class Exchange():
         new_candles.to_csv(file, mode='a', index=False, header=False)
         return new_ohlcv
 
+
+    
+    def get_orders(self, symbol, since):
+        market = self.api.market(symbol)
+        one_hour = 3600 * 1000
+        since = self.api.parse8601(since)
+        now = self.api.milliseconds()
+        end = self.api.parse8601(self.api.ymd(now) + 'T00:00:00')
+        previous_trade_id = None
+        filename = "CSV\\" + self.api.id + '\\' + market['id'].replace('/', '').lower() + '-orders.csv'
+        all_orders = []
+        while since < end:
+            try:
+                trades = self.api.fetch_trades(symbol, since)
+                print(self.api.iso8601(since), len(trades), 'trades')
+                if len(trades):
+                    last_trade = trades[-1]
+                    if previous_trade_id != last_trade['id']:
+                        since = last_trade['timestamp']
+                        previous_trade_id = last_trade['id']
+                        for trade in trades:
+                            all_orders.append({
+                                'timestamp': trade['timestamp'],
+                                'size': trade['amount'],
+                                'price': trade['price'],
+                                'side': trade['side'],
+                            })
+                    else:
+                        since += one_hour
+                else:
+                    since += one_hour
+            except ccxt.NetworkError as e:
+                print(type(e).__name__, str(e))
+                self.api.sleep(60000)
+        df = pd.DataFrame(all_orders, columns=["timestamp", "size", "price", "side"])
+        return df
 
 
     def get_candles_from_csv(self, symbol: str, timeframe: str):
