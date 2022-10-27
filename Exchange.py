@@ -1,14 +1,10 @@
-from genericpath import isdir, isfile
 from os import mkdir
 
-from pyparsing import col
 from utils.DoStuff import DoStuff
 
-import dearpygui.dearpygui as dpg
 import ccxt as ccxt
 import pandas as pd
 import os
-import csv
 
 
 class Exchange():
@@ -23,7 +19,6 @@ class Exchange():
             self.api = getattr(ccxt, exchange)()
             if self.api.name:
                 self.name = self.api.name
-                
             else:
                 self.name = exchange.capitalize
         except ccxt.ExchangeError as e:
@@ -179,9 +174,16 @@ class Exchange():
 
 
     def get_multi_candles(self, tickers:list, timeframe:str, since:str):
-        """
-            This function will return a dictionary of dataframe object(s) where the key is the ticker. It will loop through the tickers passed to it
+        """This function will return a dictionary of dataframe object(s) where the key is the ticker. It will loop through the tickers passed to it
             and call the get_candles() function, storing or updating the data in the CSV folder. 
+
+        Args:
+            tickers (list): list of ticker pairs to fetch
+            timeframe (str): a single timeframe
+            since (str): timestamp of when to start fetching candles from
+
+        Returns:
+            dict: a returned dictionary containing the candlestick dataframe accessable by the ticker as a key
         """
         candles = {}
         if len(tickers) == 1:
@@ -194,6 +196,16 @@ class Exchange():
 
 
     def get_matrix_of_closes(self, tickers:list, timeframe:str, since:str):
+        """This will generate a matrix of ticker closes from since to now by a certain timeframe. 
+
+        Args:
+            tickers (list): list of ticker pairs to fetch
+            timeframe (str): a single timeframe
+            since (str): timestamp of when to start fetching candles from
+
+        Returns:
+            DataFrame: it will return a dataframe of these closes 
+        """
         ohlcv = self.get_multi_candles(tickers, timeframe, since)
         df = pd.DataFrame()
         for ticker in ohlcv.keys():

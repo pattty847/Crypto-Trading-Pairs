@@ -55,7 +55,7 @@ class Graphics():
                         dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag='candle-series-xaxis', time=True)
                         with dpg.plot_axis(dpg.mvYAxis, label="USD", tag='candle-series-yaxis'):
                             dpg.add_candle_series([], [], [], [], [], tag='candle-series', time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
-                            dpg.fit_axis_data(dpg.top_container_stack())                
+                            dpg.fit_axis_data(dpg.top_container_stack())
 
 
                 with dpg.tab(tag='cointegration', label="Cointegration"):

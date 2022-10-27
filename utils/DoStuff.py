@@ -6,12 +6,24 @@ import dearpygui.dearpygui as dpg
 from statsmodels.tsa.stattools import coint, adfuller
 
 class DoStuff():
+    """ This class file will be a bunch of functions that do things. That is all. :D
+    """
 
     def get_roe(self, close_values: pd.Series, quantity: float):
         return float((close_values.iat[-1] - close_values.iat[0]) * quantity).__round__(3)
 
 
     def get_time_in_past(self, days, month, year):
+        """This function will be used to get a timestamp from days, month, years ago. 
+
+        Args:
+            days (_type_): _description_
+            month (_type_): _description_
+            year (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         import datetime
         year_ = str(year)
         y = int(f'20{year_[1:]}') # can't figure it out this will have to do until 2100 or I figure it out
@@ -26,6 +38,14 @@ class DoStuff():
 
 
     def convert_timeframe(self, tf):
+        """This function is used when you need to convert a timeframe (1h, 1d, etc) into the dearpygui equivalent
+
+        Args:
+            tf (String): The timeframe you want to convert to dearpygui format
+
+        Returns:
+            int: dearpygui time unit
+        """
         match (tf[len(tf) - 1]):
             case 's':
                 return dpg.mvTimeUnit_S
@@ -43,12 +63,21 @@ class DoStuff():
 
 
     def candles_to_list(self, candles):
+        """This function will convert a dataframe object containing OHLCV data into list format
+
+        Args:
+            candles (DataFrame): candlestick data (OHLCV)
+
+        Returns:
+            tuple: columns from dataframe returned as tuple containing lists
+        """
         dates = list(candles['date']/1000)
         opens = list(candles['open'])
         closes = list(candles['close'])
         lows = list(candles['low'])
         highs = list(candles['high'])
-        return (dates, opens, closes, lows, highs)
+        volume = list(candles['volume'])
+        return (dates, opens, closes, lows, highs, volume)
 
 
 
