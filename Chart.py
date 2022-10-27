@@ -11,6 +11,8 @@ class Charts():
         self.api = ccxt
         self.do = DoStuff()
 
+        self.chart_id = 0
+
     def launch_trade_panel(self, main):
         with dpg.window(label="Trade", tag="trade-window", width=400, height=500, pos=[0, 25]):
             with dpg.menu_bar(tag='trade-menu-bar'):
@@ -22,53 +24,87 @@ class Charts():
                             "no_move", "no_resize", "no_collapse",
                             "no_close", "no_background", "no_bring_to_front_on_focus"
                         )
+            with dpg.group():
+                dpg.add_input_float(label="Limit", default_value=20000, format="%.06f", width=-1)
 
-            with dpg.group(horizontal=False):
-                # step will need to equal exchange min order size
-                dpg.add_input_float(label="Limit Price", tag='limit-price', min_value=0, max_value=1000000, width=115, step=0, step_fast=0, callback=lambda:print(dpg.get_value('limit-price')), format="%.04f")
-                dpg.add_slider_int(label="Leverage", tag="leverage", min_value=1, max_value=100, callback=lambda:print(dpg.get_value("leverage")))
+            with dpg.table(header_row=False, borders_innerH=True, 
+                    borders_outerH=True, borders_innerV=True, 
+                    borders_outerV=True, width=-1):
             
+                # Add two columns
+                dpg.add_table_column()
+                dpg.add_table_column()
+
+                with dpg.table_row(height=50):
+                    dpg.add_button(label='Buy', height=48, width=-1)
+                    dpg.add_button(label='Sell', height=48, width=-1)
+                
+            with dpg.table(header_row=False, borders_innerH=True, 
+                    borders_outerH=True, borders_innerV=True, 
+                    borders_outerV=True, width=-1):
+
+                dpg.add_table_column()
+
+                with dpg.table_row(height=50):
+                    dpg.add_button(label='Cancel', height=48, width=-1)
+
+
+    def add_chart(self):
+        candles = self.api.get_candles(self.settings['last_symbol'], self.settings['last_timeframe'], self.settings['last_since'])
+        dates, opens, closes, lows, highs, volume = self.do.candles_to_list(candles)
+        self.chart_id += 1
+        print(self.chart_id)
+
+        with dpg.tab(label=f"{self.settings['last_symbol']}", parent="charts-tab", tag=f"chart-tab-{self.chart_id}"):
+            # with dpg.collapsing_header(label="Sym/TF"):
+            #     with dpg.group(horizontal=True):
+            #         with dpg.group(horizontal=False, width=250):
+            #             dpg.add_input_text(tag=f"symbols-searcher-{self.chart_id}", hint="Search",
+            #                                callback=lambda sender, data: self.searcher(f"symbols-searcher-{self.chart_id}", 
+            #                                f"symbol-{self.chart_id}", self.api.symbols))
+            #             dpg.add_listbox(self.api.symbols, tag=f'symbol-{self.chart_id}', show=True, callback=lambda a, s: self.change_symbol(a, s, self.chart_id))
+                    
+            #         dpg.add_listbox(self.api.timeframes, callback=lambda a, s : self.change_timeframe(a, s, self.chart_id), width=100)
             with dpg.group(horizontal=True):
-                dpg.add_button(tag='limit', label="Limit", width=400/2-30)
-                # dpg.add_theme_color("limit", self._hsv_to_rgb(2/7.0, 0.6, 0.6))r
-                dpg.add_button(label="Market", width=-1)
+                symbol = dpg.add_selectable(label="Symbol", width=50)
+                timeframe = dpg.add_selectable(label="TF", width=15)
+                with dpg.popup(symbol, mousebutton=dpg.mvMouseButton_Left):
+                    dpg.add_input_text(tag=f"symbols-searcher-{self.chart_id}", hint="Search",
+                                            callback=lambda sender, data: self.searcher(f"symbols-searcher-{self.chart_id}", 
+                                            f"symbol-{self.chart_id}", self.api.symbols))
+                    dpg.add_listbox(self.api.symbols, tag=f'symbol-{self.chart_id}', show=True, callback=lambda a, s: self.change_symbol(a, s, self.chart_id))
 
-            with dpg.group(width=-1):
-                dpg.add_button(label="Buy", height=20)
-                dpg.add_button(label="Sell", height=20)
+                with dpg.popup(timeframe, mousebutton=dpg.mvMouseButton_Left):
+                    dpg.add_listbox(self.api.timeframes, callback=lambda a, s : self.change_timeframe(a, s, self.chart_id), width=100)
 
+            with dpg.subplots(2, 1, label="", width=-1, height=-1, link_all_x=True):
+                with dpg.plot():
+                    dpg.add_plot_legend()
+                    xaxis_candle_tag = f'candle-series-xaxis-{self.chart_id}'
+                    dpg.add_plot_axis(dpg.mvXAxis, tag=xaxis_candle_tag, time=True)
+                    with dpg.plot_axis(dpg.mvYAxis, tag=f'candle-series-yaxis-{self.chart_id}', label="USD"):
+                        dpg.add_candle_series(dates, opens, closes, lows, highs, tag=f'candle-series-{self.chart_id}', time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
+                        dpg.fit_axis_data(dpg.top_container_stack())
+                        dpg.fit_axis_data(xaxis_candle_tag)
+                        
+                with dpg.plot():
+                    dpg.add_plot_legend()
+                    xaxis_volume_tag = f'volume-series-xaxis-{self.chart_id}'
+                    dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag=xaxis_volume_tag, time=True)
+                    with dpg.plot_axis(dpg.mvYAxis, label="USD", tag=f'volume-series-yaxis-{self.chart_id}'):
+                        dpg.add_bar_series(dates, volume, tag=f'volume-series-{self.chart_id}')
+                        dpg.fit_axis_data(dpg.top_container_stack())
+                        dpg.fit_axis_data(xaxis_volume_tag)
 
 
     def launch_charts(self):
         """ This is the main candlestick and volume charts for the program, upon startup it will build the chart from the last saved ticker and timeframe. Then allow the user to select
         any symbol and timeframe they want. 
         """
-        candles = self.api.get_candles(self.settings['last_symbol'], self.settings['last_timeframe'], self.settings['last_since'])
-        dates, opens, closes, lows, highs, volume = self.do.candles_to_list(candles)
 
-        with dpg.child_window(label="Charts", tag="charts-window", width=-1, height=-1, parent="main"):
-
-            with dpg.subplots(2, 1, label="", width=-1, height=-1, link_all_x=True) as subplot_id:
-                with dpg.plot(label=f"Charts", tag='charts-plot'):
-                    dpg.add_plot_legend()
-
-                    dpg.add_plot_axis(dpg.mvXAxis, tag='candle-series-xaxis', time=True)
-                    with dpg.plot_axis(dpg.mvYAxis, label="USD", tag='candle-series-yaxis'):
-                        dpg.add_candle_series(dates, opens, closes, lows, highs, tag='candle-series', time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
-                        dpg.fit_axis_data(dpg.top_container_stack())
-                        dpg.fit_axis_data('candle-series-xaxis')
-
-                    with dpg.plot_axis(dpg.mvYAxis):
-                        dpg.add_heat_series(dates, closes)
-
-                        
-                with dpg.plot(label=f"Volume", tag='volume-plot'):
-                    dpg.add_plot_legend()
-                    dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag='volume-series-xaxis', time=True)
-                    with dpg.plot_axis(dpg.mvYAxis, label="USD", tag='volume-series-yaxis'):
-                        dpg.add_bar_series(dates, volume)
-                        dpg.fit_axis_data(dpg.top_container_stack())
-                        dpg.fit_axis_data('volume-series-xaxis')
+        with dpg.child_window(label="Charts", tag="charts-window", parent="main"):
+            with dpg.tab_bar(tag="charts-tab"):
+                dpg.add_tab_button(label="+", trailing=True, callback=self.add_chart)
 
     def draw_menu(self):
         with dpg.menu_bar(tag='main-menu-bar', parent="main"):
@@ -76,31 +112,37 @@ class Charts():
                 dpg.add_menu_item(label="Charts", callback=self.launch_charts)
                 dpg.add_menu_item(label="Trade", callback=self.launch_trade_panel)
                 dpg.add_menu_item(label="Demo", callback=lambda:demo.show_demo())
-                
-            with dpg.menu(label="Symbols"):
-                dpg.add_input_text(tag="symbols-searcher", hint="Search",
-                                callback=lambda sender, data: self.searcher("symbols-searcher", "symbol", self.api.symbols))
-                dpg.add_listbox(self.api.symbols, tag='symbol', show=True, callback=self.change_symbol)
 
-            with dpg.menu(label="TF"):
-                dpg.add_listbox(self.api.timeframes, callback=self.change_timeframe)
+
+            with dpg.menu(label="Date"):
+                # date = datetime.today().strftime('%Y-%m-%d').split("-")
+                date = self.settings['last_since'].split("T")[0].split("-")
+                print(date)
+                year = str(int(date[0][2:]))
+                year_ = f'1{year}'
+                dates = {'month_day': int(date[2]), 'year':int(year_), 'month':int(date[1])}
+                print(dates)
+                
+                dpg.add_date_picker(level=dpg.mvDatePickerLevel_Day, label='From', default_value=dates)
 
 
     def change_symbol(self, s, app_data, u):
         candles = self.api.get_candles(app_data, self.settings['last_timeframe'], self.settings['last_since'])
         dates, opens, closes, lows, highs, volume = self.do.candles_to_list(candles)
-        dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
-        dpg.fit_axis_data('candle-series-yaxis')
-        dpg.fit_axis_data('candle-series-xaxis')
+        dpg.configure_item(f'candle-series-{u}', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
+        dpg.configure_item(f"chart-tab-{u}", label=app_data)
+        dpg.fit_axis_data(f'candle-series-yaxis-{u}')
+        dpg.fit_axis_data(f'candle-series-xaxis-{u}')
         self.update_settings({"last_symbol":app_data})
 
     
     def change_timeframe(self, s, app_data, u):
         candles = self.api.get_candles(self.settings['last_symbol'], app_data, self.settings['last_since'])
         dates, opens, closes, lows, highs, volume = self.do.candles_to_list(candles)
-        dpg.configure_item('candle-series', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(app_data))
-        dpg.fit_axis_data('candle-series-yaxis')
-        dpg.fit_axis_data('candle-series-xaxis')
+        dpg.configure_item(f'candle-series-{u}', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(app_data))
+        # dpg.configure_item(f"chart-tab-{u}", label=app_data)
+        dpg.fit_axis_data(f'candle-series-yaxis-{u}')
+        dpg.fit_axis_data(f'candle-series-xaxis-{u}')
         self.update_settings({"last_timeframe":app_data})
 
     
