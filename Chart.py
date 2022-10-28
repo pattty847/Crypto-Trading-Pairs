@@ -49,11 +49,15 @@ class Charts():
                     dpg.add_button(label='Cancel', height=48, width=-1)
 
 
+    def launch_indicator_panel(self):
+        with dpg.window(label="Indicator", tag="indicator-window", width=400, height=500, pos=[0, 25]):
+            indicator_list = ["RSI", "MACD", "MFI", "SMA", "EMA"]
+
+
     def add_chart(self):
         candles = self.api.get_candles(self.settings['last_symbol'], self.settings['last_timeframe'], self.settings['last_since'])
         dates, opens, closes, lows, highs, volume = self.do.candles_to_list(candles)
         self.chart_id += 1
-        print(self.chart_id)
 
         with dpg.tab(label=f"{self.settings['last_symbol']}", parent="charts-tab", tag=f"chart-tab-{self.chart_id}"):
             # with dpg.collapsing_header(label="Sym/TF"):
@@ -68,6 +72,8 @@ class Charts():
             with dpg.group(horizontal=True):
                 symbol = dpg.add_selectable(label="Symbol", width=50)
                 timeframe = dpg.add_selectable(label="TF", width=15)
+                date = dpg.add_selectable(label="Date", width=30)
+                indicator = dpg.add_selectable(label="Indicator", callback=self.launch_indicator_panel)
                 with dpg.popup(symbol, mousebutton=dpg.mvMouseButton_Left):
                     dpg.add_input_text(tag=f"symbols-searcher-{self.chart_id}", hint="Search",
                                             callback=lambda sender, data: self.searcher(f"symbols-searcher-{self.chart_id}", 
@@ -77,7 +83,16 @@ class Charts():
                 with dpg.popup(timeframe, mousebutton=dpg.mvMouseButton_Left):
                     dpg.add_listbox(self.api.timeframes, callback=lambda a, s : self.change_timeframe(a, s, self.chart_id), width=100)
 
-            with dpg.subplots(2, 1, label="", width=-1, height=-1, link_all_x=True):
+                with dpg.popup(date, mousebutton=dpg.mvMouseButton_Left):
+                    # date = datetime.today().strftime('%Y-%m-%d').split("-")
+                    date = self.settings['last_since'].split("T")[0].split("-")
+                    year = str(int(date[0][2:]))
+                    year_ = f'1{year}'
+                    since = {'month_day': int(date[2]), 'year':int(year_), 'month':int(date[1])}
+                    
+                    dpg.add_date_picker(level=dpg.mvDatePickerLevel_Day, label='From', default_value=since)
+
+            with dpg.subplots(2, 1, label="", width=-1, height=-1, link_all_x=True, row_ratios=[1.0, 0.25]):
                 with dpg.plot():
                     dpg.add_plot_legend()
                     xaxis_candle_tag = f'candle-series-xaxis-{self.chart_id}'
@@ -92,7 +107,7 @@ class Charts():
                     xaxis_volume_tag = f'volume-series-xaxis-{self.chart_id}'
                     dpg.add_plot_axis(dpg.mvXAxis, label="Date", tag=xaxis_volume_tag, time=True)
                     with dpg.plot_axis(dpg.mvYAxis, label="USD", tag=f'volume-series-yaxis-{self.chart_id}'):
-                        dpg.add_bar_series(dates, volume, tag=f'volume-series-{self.chart_id}')
+                        dpg.add_bar_series(dates, volume, tag=f'volume-series-{self.chart_id}', weight=1)
                         dpg.fit_axis_data(dpg.top_container_stack())
                         dpg.fit_axis_data(xaxis_volume_tag)
 
@@ -114,16 +129,8 @@ class Charts():
                 dpg.add_menu_item(label="Demo", callback=lambda:demo.show_demo())
 
 
-            with dpg.menu(label="Date"):
-                # date = datetime.today().strftime('%Y-%m-%d').split("-")
-                date = self.settings['last_since'].split("T")[0].split("-")
-                print(date)
-                year = str(int(date[0][2:]))
-                year_ = f'1{year}'
-                dates = {'month_day': int(date[2]), 'year':int(year_), 'month':int(date[1])}
-                print(dates)
-                
-                dpg.add_date_picker(level=dpg.mvDatePickerLevel_Day, label='From', default_value=dates)
+            with dpg.menu(label="Save"):
+                dpg.add_menu_item(label="Save Window Configurations", callback=lambda: self.save_init())
 
 
     def change_symbol(self, s, app_data, u):
@@ -225,3 +232,7 @@ class Charts():
                 dpg.configure_item(item, **{keyword: value})
         else:
             dpg.configure_item(items, **{keyword: value})
+
+    def save_init(self):
+        dpg.save_init_file("dpg.ini")
+        print("Saved window config.")

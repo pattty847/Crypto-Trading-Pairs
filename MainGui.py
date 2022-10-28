@@ -31,7 +31,8 @@ class MainGui():
 
         # Dearpygui setup
         dpg.create_context()
-
+        dpg.configure_app(init_file="dpg.ini")  
+        
         self.charts = Charts(self.settings, self.ccxt)
 
         # Launch program
