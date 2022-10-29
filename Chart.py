@@ -13,7 +13,7 @@ class Charts():
 
         self.chart_id = 0
 
-    def launch_trade_panel(self, main):
+    def launch_trade_panel(self):
         with dpg.window(label="Trade", tag="trade-window", width=400, height=500, pos=[0, 25]):
 
             with dpg.menu_bar(tag='trade-menu-bar'):
@@ -65,8 +65,8 @@ class Charts():
                 for col in range(4):
                     dpg.add_table_column()
 
-                with dpg.table_row():
-                    for item in indicator_list:
+                for item in indicator_list:
+                    with dpg.table_row():
                         dpg.add_selectable(label=item)
                 
 
@@ -150,7 +150,6 @@ class Charts():
         with dpg.menu_bar(tag='main-menu-bar', parent="main"):
 
             with dpg.menu(label="Menu"):
-
                 dpg.add_menu_item(label="Charts", callback=self.launch_charts)
                 dpg.add_menu_item(label="Trade", callback=self.launch_trade_panel)
             
@@ -162,39 +161,56 @@ class Charts():
 
 
             with dpg.menu(label="Save"):
-
                 dpg.add_menu_item(label="Save Window Configurations", callback=lambda: self.save_init())
 
 
-    def change_symbol(self, s, app_data, u):
+    def change_symbol(self, sender, app_data, user_data):
+
+        chart_id = sender[-1]
 
         candles = self.api.get_candles(app_data, self.settings['last_timeframe'], self.settings['last_since'])
         dates, opens, closes, lows, highs, volume = self.do.candles_to_list(candles)
-        dpg.configure_item(f'candle-series-{u}', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
-        dpg.configure_item(f"chart-tab-{u}", label=app_data)
-        dpg.fit_axis_data(f'candle-series-yaxis-{u}')
-        dpg.fit_axis_data(f'candle-series-xaxis-{u}')
+
+        dpg.configure_item(f'candle-series-{chart_id}', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(self.settings['last_timeframe']))
+        dpg.configure_item(f"chart-tab-{chart_id}", label=app_data)
+
+        dpg.fit_axis_data(f'candle-series-yaxis-{chart_id}')
+        dpg.fit_axis_data(f'candle-series-xaxis-{chart_id}')
+
+        dpg.configure_item(f"volume-series-{chart_id}", x=dates, y=volume)
+        dpg.fit_axis_data(f'volume-series-yaxis-{chart_id}')
+        dpg.fit_axis_data(f'volume-series-xaxis-{chart_id}')
+
         self.update_settings({"last_symbol":app_data})
 
     
-    def change_timeframe(self, s, app_data, u):
+    def change_timeframe(self, sender, app_data, user_data):
+
+        chart_id = sender[-1]
 
         candles = self.api.get_candles(self.settings['last_symbol'], app_data, self.settings['last_since'])
         dates, opens, closes, lows, highs, volume = self.do.candles_to_list(candles)
 
-        dpg.configure_item(f'candle-series-{u}', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(app_data))
-        dpg.fit_axis_data(f'candle-series-yaxis-{u}')
-        dpg.fit_axis_data(f'candle-series-xaxis-{u}')
+        dpg.configure_item(f'candle-series-{chart_id}', dates=dates, opens=opens, closes=closes, highs=highs, lows=lows, time_unit=self.do.convert_timeframe(app_data))
+        dpg.fit_axis_data(f'candle-series-yaxis-{chart_id}')
+        dpg.fit_axis_data(f'candle-series-xaxis-{chart_id}')
+        
+        dpg.configure_item(f"volume-series-{chart_id}", x=dates, y=volume)
+        dpg.fit_axis_data(f'volume-series-yaxis-{chart_id}')
+        dpg.fit_axis_data(f'volume-series-xaxis-{chart_id}')
+
         self.update_settings({"last_timeframe":app_data})
 
     
     def update_settings(self, x):
+
         self.settings.update(x)
         with open("settings.json", "w") as jsonFile:
             json.dump(self.settings, jsonFile)
 
 
     def orderbook_matrix(self, orderbook):
+
         from pprint import pprint
         matrix = []
         bids = orderbook['bids']
@@ -271,6 +287,8 @@ class Charts():
         else:
             dpg.configure_item(items, **{keyword: value})
 
+
     def save_init(self):
+
         dpg.save_init_file("dpg.ini")
         print("Saved window config.")

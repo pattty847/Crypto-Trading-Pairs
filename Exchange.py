@@ -14,29 +14,36 @@ class Exchange():
         You can get a dataframe of ticker closes
     """
     def __init__(self, exchange: str, api=False):
+
         # Try initializing the exchange and catch any errors.
         try: 
+
             self.api = getattr(ccxt, exchange)()
+
             if self.api.name:
                 self.name = self.api.name
             else:
                 self.name = exchange.capitalize
+
         except ccxt.ExchangeError as e:
             print(f'Error connecting to {exchange.capitalize}')
 
         # Check if we have a file of the symbols
         try:
+
             self.symbols = open(f'CSV\\{exchange}\\symbols.txt', "r").read().splitlines()
+
         except FileNotFoundError as e:
+            
             if self.api.id == "binance":
                 symbols = self.api.symbols
             elif self.api.id == "ftx":
                 symbols = [x for x in self.api.fetch_tickers().items()]
+                
             # If not grab the symbols from the API and store them for quick loading next time. 
             self.symbols = symbols
             mkdir(f'CSV\\{exchange}\\')
             pd.Series(self.symbols).to_csv(f'CSV\\{exchange}\\symbols.txt', index=False)
-        print('Symbols imported.')
         
         # Setting up attributes
         # self.api.load_markets()
@@ -125,7 +132,6 @@ class Exchange():
         new_ohlcv = pd.concat([old_candles, new_candles], ignore_index=True)
         new_candles.to_csv(file, mode='a', index=False, header=False)
         return new_ohlcv
-
 
     
     def get_orders(self, symbol, since):

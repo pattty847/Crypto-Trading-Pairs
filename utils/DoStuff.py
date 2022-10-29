@@ -32,7 +32,15 @@ class DoStuff():
         return f"{y2}Z"
 
 
-    def zscore(self, series):
+    def zscore(self, series: pd.Series):
+        """This will calculate the z-score of a series. 
+
+        Args:
+            series (pd.Series): Pandas series
+
+        Returns:
+            _type_: Z-Score series
+        """
         return (series - series.mean()) / pta.stdev(series)
 
 
@@ -82,6 +90,15 @@ class DoStuff():
 
 
     def find_cointegrated_pairs(self, data: pd.DataFrame, pvalue_filter: float):
+        """This is a function which you want to use to draw a heatmap of cointegrated values between them. It will return what you need for a heatmap series in "pvalue_matrix" var.
+
+        Args:
+            data (pd.DataFrame): This is a matrix of closes
+            pvalue_filter (float): This is the value you want to filter pvalues which are less than
+
+        Returns:
+            _type_: tuple containing the cointegration scores, pvalues, and pairs thare are under a certain pvalue.
+        """
         n = data.shape[1]
         score_matrix = np.zeros((n, n))
         pvalue_matrix = np.ones((n, n))
