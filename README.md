@@ -6,6 +6,10 @@ I need to do a lot more, it's just a small project for now. Test.
 
 Progress Timeline: Current -> Past
 
+**10/29/2022**
+![image](https://user-images.githubusercontent.com/23511285/198856738-97f034f8-7e55-4df2-9144-69600a953f0d.png)
+
+
 **10/28/2022**
 ![image](https://user-images.githubusercontent.com/23511285/198717196-0703a1fe-38a9-4ecd-8f46-8a4dff8658ce.png)
 
