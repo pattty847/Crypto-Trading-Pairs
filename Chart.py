@@ -1,4 +1,5 @@
 from utils.DoStuff import DoStuff
+from utils.CoinalyzeStats import Stats
 
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
@@ -53,10 +54,34 @@ class Charts():
 
                 with dpg.table_row(height=50):
 
-                    dpg.add_button(label='Cancel', height=48, width=-1)
+                    dpg.add_button(label='Cancel', height=48, width=-1)\
+
+
+    def launch_stats_panel(self):
+
+        with dpg.window(label="Crypto Stats", tag="stats-window", width=-1, height=-1, pos=[0, 25]):
+           
+            s = Stats()
+            
+            with dpg.table(label='DatasetTable') as stats_window:
+                
+                for i in range(s.stats.shape[1]):                    # Generates the correct amount of columns
+                    dpg.add_table_column(label=s.stats.columns[i])   # Adds the headers
+                
+                for i in range(s.stats.shape[0]):                    # Shows the first n rows
+                    
+                    with dpg.table_row():
+                        
+                        for j in range(s.stats.shape[1]):
+                            
+                            dpg.add_text(f"{s.stats.iloc[i,j]}")
+            
+            self._add_config_options(stats_window, 1, 
+                "borders_innerV", "borders_outerV", "resizable", before=stats_window)
 
 
     def launch_indicator_panel(self):
+        
         with dpg.window(label="Indicator", tag="indicator-window", width=400, height=500, pos=[0, 25]):
 
             indicator_list = ["RSI", "MACD", "MFI", "SMA", "EMA"]
@@ -72,6 +97,7 @@ class Charts():
 
 
     def add_chart(self):
+
         candles = self.api.get_candles(self.settings['last_symbol'], self.settings['last_timeframe'], self.settings['last_since'])
         dates, opens, closes, lows, highs, volume = self.do.candles_to_list(candles)
         self.chart_id += 1
@@ -91,15 +117,15 @@ class Charts():
                                             callback=lambda sender, data: self.searcher(f"symbols-searcher-{self.chart_id}", 
                                             f"symbol-{self.chart_id}", self.api.symbols))
 
-                    dpg.add_listbox(self.api.symbols, tag=f'symbol-{self.chart_id}', show=True, callback=lambda a, s: self.change_symbol(a, s, self.chart_id))
+                    dpg.add_listbox(self.api.symbols, tag=f'symbol-{self.chart_id}', show=True, callback=lambda s, a: self.change_symbol(s, a, self.chart_id))
 
                 with dpg.popup(timeframe, mousebutton=dpg.mvMouseButton_Left):
 
-                    dpg.add_listbox(self.api.timeframes, callback=lambda a, s : self.change_timeframe(a, s, self.chart_id), width=100)
+                    dpg.add_listbox(self.api.timeframes, tag=f'timeframe-{self.chart_id}', callback=lambda s, a : self.change_timeframe(s, a, self.chart_id), width=100)
 
                 with dpg.popup(date, mousebutton=dpg.mvMouseButton_Left):
+                    # The default date will be the last saved date in the settings file
 
-                    # date = datetime.today().strftime('%Y-%m-%d').split("-")
                     date = self.settings['last_since'].split("T")[0].split("-")
                     year = str(int(date[0][2:]))
                     year_ = f'1{year}'
@@ -135,8 +161,7 @@ class Charts():
 
 
     def launch_charts(self):
-        """ This is the main candlestick and volume charts for the program, upon startup it will build the chart from the last saved ticker and timeframe. Then allow the user to select
-        any symbol and timeframe they want. 
+        """This is the main child window that is attached to the primary window. It contains the tab bar which other tabs are attached to via tag.
         """
 
         with dpg.child_window(label="Charts", tag="charts-window", parent="main"):
@@ -144,14 +169,17 @@ class Charts():
             with dpg.tab_bar(tag="charts-tab"):
 
                 dpg.add_tab_button(label="+", trailing=True, callback=self.add_chart)
+                with dpg.tooltip(parent=dpg.last_item()):
+                    dpg.add_text("Click to add charts.")
 
     def draw_menu(self):
 
         with dpg.menu_bar(tag='main-menu-bar', parent="main"):
 
-            with dpg.menu(label="Menu"):
-                dpg.add_menu_item(label="Charts", callback=self.launch_charts)
+            with dpg.group(horizontal=True):
                 dpg.add_menu_item(label="Trade", callback=self.launch_trade_panel)
+                dpg.add_menu_item(label="Stats", callback=self.launch_stats_panel)
+                
             
             with dpg.menu(label="DPG"):
                 dpg.add_menu_item(label="Debug", callback=dpg.show_debug)
@@ -159,12 +187,12 @@ class Charts():
                 dpg.add_menu_item(label="ImPlot", callback=dpg.show_implot_demo)
                 dpg.add_menu_item(label="Demo", callback=demo.show_demo)
 
-
             with dpg.menu(label="Save"):
                 dpg.add_menu_item(label="Save Window Configurations", callback=lambda: self.save_init())
 
 
     def change_symbol(self, sender, app_data, user_data):
+        print(sender[-1], app_data, user_data)
 
         chart_id = sender[-1]
 
@@ -185,8 +213,9 @@ class Charts():
 
     
     def change_timeframe(self, sender, app_data, user_data):
-
+        print(sender[-1], app_data, user_data)
         chart_id = sender[-1]
+        
 
         candles = self.api.get_candles(self.settings['last_symbol'], app_data, self.settings['last_since'])
         dates, opens, closes, lows, highs, volume = self.do.candles_to_list(candles)
@@ -201,7 +230,56 @@ class Charts():
 
         self.update_settings({"last_timeframe":app_data})
 
-    
+
+    def _add_config_options(self, item, columns, *names, **kwargs):
+        
+        if columns == 1:
+            if 'before' in kwargs:
+                for name in names:
+                    dpg.add_checkbox(label=name, callback=self._config, user_data=item, before=kwargs['before'], default_value=dpg.get_item_configuration(item)[name])
+            else:
+                for name in names:
+                    dpg.add_checkbox(label=name, callback=self._config, user_data=item, default_value=dpg.get_item_configuration(item)[name])
+
+        else:
+
+            if 'before' in kwargs:
+                dpg.push_container_stack(dpg.add_table(header_row=False, before=kwargs['before']))
+            else:
+                dpg.push_container_stack(dpg.add_table(header_row=False))
+
+            for i in range(columns):
+                dpg.add_table_column()
+
+            for i in range(int(len(names)/columns)):
+
+                with dpg.table_row():
+                    for j in range(columns):
+                        dpg.add_checkbox(label=names[i*columns + j], 
+                                            callback=self._config, user_data=item, 
+                                            default_value=dpg.get_item_configuration(item)[names[i*columns + j]])
+            dpg.pop_container_stack()
+
+
+    def _config(self, sender, keyword, user_data):
+
+        widget_type = dpg.get_item_type(sender)
+        items = user_data
+
+        if widget_type == "mvAppItemType::mvRadioButton":
+            value = True
+
+        else:
+            keyword = dpg.get_item_label(sender)
+            value = dpg.get_value(sender)
+
+        if isinstance(user_data, list):
+            for item in items:
+                dpg.configure_item(item, **{keyword: value})
+        else:
+            dpg.configure_item(items, **{keyword: value})
+
+
     def update_settings(self, x):
 
         self.settings.update(x)
