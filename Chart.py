@@ -14,6 +14,9 @@ class Charts():
 
         self.chart_id = 0
 
+        s = Stats()
+        self.stats = s.stats
+
     def launch_trade_panel(self):
         with dpg.window(label="Trade", tag="trade-window", width=400, height=500, pos=[0, 25]):
 
@@ -59,25 +62,22 @@ class Charts():
 
     def launch_stats_panel(self):
 
-        with dpg.window(label="Crypto Stats", tag="stats-window", width=-1, height=-1, pos=[0, 25]):
-           
-            s = Stats()
+        with dpg.window(label="Crypto Stats", tag="stats-window", width=800, height=1000, pos=[15, 60]):
             
-            with dpg.table(label='DatasetTable') as stats_window:
+            with dpg.table(tag='stats-table', borders_innerH=True, borders_innerV=True, borders_outerH=True, borders_outerV=True, resizable=True):
                 
-                for i in range(s.stats.shape[1]):                    # Generates the correct amount of columns
-                    dpg.add_table_column(label=s.stats.columns[i])   # Adds the headers
+                for i in range(self.stats.shape[1]):                    # Generates the correct amount of columns
+                    dpg.add_table_column(label=self.stats.columns[i])   # Adds the headers
                 
-                for i in range(s.stats.shape[0]):                    # Shows the first n rows
+                for i in range(self.stats.shape[0]):                    # Shows the first n rows
                     
                     with dpg.table_row():
                         
-                        for j in range(s.stats.shape[1]):
+                        for j in range(self.stats.shape[1]):
                             
-                            dpg.add_text(f"{s.stats.iloc[i,j]}")
-            
-            self._add_config_options(stats_window, 1, 
-                "borders_innerV", "borders_outerV", "resizable", before=stats_window)
+                            dpg.add_text(f"{self.stats.iloc[i,j]}")
+                            # dpg.highlight_table_cell('stats-table', i, j, [0, 255, 0, 100])
+        
 
 
     def launch_indicator_panel(self):
