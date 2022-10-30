@@ -1,3 +1,4 @@
+from Exchange import Exchange
 from utils.DoStuff import DoStuff
 from utils.CoinalyzeStats import Stats
 
@@ -11,6 +12,7 @@ class Charts():
         self.settings = settings
         self.api = ccxt
         self.do = DoStuff()
+        self.on = False
 
         self.chart_id = 0
 
@@ -159,7 +161,6 @@ class Charts():
                         dpg.fit_axis_data(dpg.top_container_stack())
                         dpg.fit_axis_data(xaxis_volume_tag)
 
-
     def launch_charts(self):
         """This is the main child window that is attached to the primary window. It contains the tab bar which other tabs are attached to via tag.
         """
@@ -172,6 +173,33 @@ class Charts():
                 with dpg.tooltip(parent=dpg.last_item()):
                     dpg.add_text("Click to add charts.")
 
+
+    def launch_settings_panel(self):
+        with dpg.window(label="Connect Exchange", tag="settings-window", width=500, height=350, pos=[0, 25], on_close = lambda: dpg.delete_item("settings-window")):
+            dpg.add_text("Exchange Settings")
+            dpg.add_combo(['binance', 'ftx', 'coinbasepro', 'gateio', 'binanceus'], label="Exchange", tag='exchange')
+            dpg.add_input_text(label="API KEY", multiline=False, height=300, tab_input=True, tag='key')
+            dpg.add_input_text(label="API SECRET", multiline=False, height=300, tab_input=True, tag='secret')
+            dpg.add_button(label="Connect", callback=self.connect_exchange)
+
+    def connect_exchange(self):
+        exchange_name = dpg.get_value('exchange')
+        key = dpg.get_value('key')
+        secret = dpg.get_value('secret')
+
+        self.exchange = Exchange(exchange_name)
+
+        self.settings.update({"exchange":{"name":exchange_name, "key":key, "secret":secret}})
+        with open ("settings.json", "w") as jsonFile:
+            json.dump(self.settings, jsonFile)
+
+
+        if not dpg.get_item_configuration('main-menu-bar')['show']:
+            self.draw_menu()
+            self.launch_charts()
+        dpg.delete_item('settings-window')
+
+
     def draw_menu(self):
 
         with dpg.menu_bar(tag='main-menu-bar', parent="main"):
@@ -179,6 +207,7 @@ class Charts():
             with dpg.group(horizontal=True):
                 dpg.add_menu_item(label="Trade", callback=self.launch_trade_panel)
                 dpg.add_menu_item(label="Stats", callback=self.launch_stats_panel)
+                dpg.add_menu_item(label="Settings", callback=self.launch_settings_panel)
                 
             
             with dpg.menu(label="DPG"):
@@ -192,7 +221,6 @@ class Charts():
 
 
     def change_symbol(self, sender, app_data, user_data):
-        print(sender[-1], app_data, user_data)
 
         chart_id = sender[-1]
 

@@ -37,10 +37,14 @@ class Exchange():
             
             if self.api.id == "binance":
                 symbols = self.api.symbols
+            elif self.api.id == "coinbasepro":
+                symbols = self.api.fetch_tickers().keys()
+            print(symbols)
+                
                 
             # If not grab the symbols from the API and store them for quick loading next time. 
             self.symbols = symbols
-            os.makedirs(f'{self.PATH}\\CSV\\{exchange}')
+            os.makedirs(f'CSV\\{exchange}')
             pd.Series(self.symbols).to_csv(f'CSV\\{exchange}\\symbols.txt', index=False)
         
         # Setting up attributes
