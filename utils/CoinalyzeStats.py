@@ -12,6 +12,3 @@ class Stats():
         except FileNotFoundError as e:
             self.stats.to_csv(f"previous_stats.csv", index=False)
             self.previous_stats = None
-        
-        self.top_vol_coins = self.stats.iloc[0:10, :]
-        self.previous_top_vol_coins = self.previous_stats.iloc[0:10, :]

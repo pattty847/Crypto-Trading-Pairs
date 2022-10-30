@@ -1,4 +1,4 @@
-from os import mkdir
+import os 
 
 from utils.DoStuff import DoStuff
 
@@ -37,12 +37,10 @@ class Exchange():
             
             if self.api.id == "binance":
                 symbols = self.api.symbols
-            elif self.api.id == "ftx":
-                symbols = [x for x in self.api.fetch_tickers().items()]
                 
             # If not grab the symbols from the API and store them for quick loading next time. 
             self.symbols = symbols
-            mkdir(f'CSV\\{exchange}\\')
+            os.makedirs(f'{self.PATH}\\CSV\\{exchange}')
             pd.Series(self.symbols).to_csv(f'CSV\\{exchange}\\symbols.txt', index=False)
         
         # Setting up attributes
