@@ -13,7 +13,7 @@ class Exchange():
         You can pull candles for one or many tickers. 
         You can get a dataframe of ticker closes
     """
-    def __init__(self, exchange: str, api=False):
+    def __init__(self, exchange: str):
 
         # Try initializing the exchange and catch any errors.
         try: 
