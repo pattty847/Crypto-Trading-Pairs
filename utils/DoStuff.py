@@ -118,6 +118,13 @@ class DoStuff():
         return (score_matrix, pvalue_matrix, pairs)
 
 
+    
+    def first_time_back(self):
+        """TODO: First Time Back (FTB) to the Supply or Demand zone
+        """
+        pass
+
+
 
     def hex_to_RGB(self, hex):
         ''' "#FFFFFF" -> [255,255,255] '''

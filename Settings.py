@@ -17,6 +17,7 @@ class Settings:
                     charts = Charts(self.settings, self.exchange)
                     charts.draw_menu()
                     charts.launch_charts()
+                    charts.set_chart(charts)
                 else:
                     charts = Charts(self.settings, self.exchange)
                     charts.launch_settings_panel()

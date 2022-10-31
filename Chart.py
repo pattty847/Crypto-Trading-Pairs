@@ -7,20 +7,26 @@ import dearpygui.demo as demo
 import json
 
 class Charts():
+    """ The Charts class will store all functions pertaining to drawing the kline chart, anything to do with trading (maybe, I want to see if I can OOP the whole project),
+        indicators, stats panel, etc.  
+    """
 
     def __init__(self, settings, ccxt) -> None:
         self.settings = settings
         self.api = ccxt
-        self.do = DoStuff()
-        self.on = False
 
         self.chart_id = 0
 
-        s = Stats()
-        self.stats = s.stats
+        self.do = DoStuff()
+        stats = Stats()
+        
+        self.stats = stats.stats
+
+        self.draw_menu()
+        self.launch_charts()
 
     def launch_trade_panel(self):
-        with dpg.window(label="Trade", tag="trade-window", width=400, height=500, pos=[0, 25]):
+        with dpg.window(label="Trade", tag="trade-window", width=400, height=500, pos=[0, 25], on_close = lambda: dpg.delete_item("trade-window")):
 
             with dpg.menu_bar(tag='trade-menu-bar'):
 
@@ -64,7 +70,7 @@ class Charts():
 
     def launch_stats_panel(self):
 
-        with dpg.window(label="Crypto Stats", tag="stats-window", width=800, height=1000, pos=[15, 60]):
+        with dpg.window(label="Crypto Stats", tag="stats-window", width=800, height=1000, pos=[15, 60], on_close = lambda: dpg.delete_item("stats-window")):
             
             with dpg.table(tag='stats-table', borders_innerH=True, borders_innerV=True, borders_outerH=True, borders_outerV=True, resizable=True):
                 
@@ -84,7 +90,7 @@ class Charts():
 
     def launch_indicator_panel(self):
         
-        with dpg.window(label="Indicator", tag="indicator-window", width=400, height=500, pos=[0, 25]):
+        with dpg.window(label="Indicator", tag="indicator-window", width=400, height=500, pos=[0, 25], on_close = lambda: dpg.delete_item("indicator-window")):
 
             indicator_list = ["RSI", "MACD", "MFI", "SMA", "EMA"]
             with dpg.table(header_row=False):
@@ -97,14 +103,13 @@ class Charts():
                         dpg.add_selectable(label=item)
                 
 
-
     def add_chart(self):
 
         candles = self.api.get_candles(self.settings['last_symbol'], self.settings['last_timeframe'], self.settings['last_since'])
         dates, opens, closes, lows, highs, volume = self.do.candles_to_list(candles)
         self.chart_id += 1
 
-        with dpg.tab(label=f"{self.settings['last_symbol']}", parent="charts-tab", tag=f"chart-tab-{self.chart_id}"):
+        with dpg.tab(label=f"{self.api.name} | {self.settings['last_symbol']}", parent="charts-tab", tag=f"chart-tab-{self.chart_id}"):
 
             with dpg.group(horizontal=True):
 
@@ -161,6 +166,7 @@ class Charts():
                         dpg.fit_axis_data(dpg.top_container_stack())
                         dpg.fit_axis_data(xaxis_volume_tag)
 
+
     def launch_charts(self):
         """This is the main child window that is attached to the primary window. It contains the tab bar which other tabs are attached to via tag.
         """
@@ -182,6 +188,7 @@ class Charts():
             dpg.add_input_text(label="API SECRET", multiline=False, height=300, tab_input=True, tag='secret')
             dpg.add_button(label="Connect", callback=self.connect_exchange)
 
+
     def connect_exchange(self):
         exchange_name = dpg.get_value('exchange')
         key = dpg.get_value('key')
@@ -189,15 +196,21 @@ class Charts():
 
         self.exchange = Exchange(exchange_name)
 
-        self.settings.update({"exchange":{"name":exchange_name, "key":key, "secret":secret}})
-        with open ("settings.json", "w") as jsonFile:
-            json.dump(self.settings, jsonFile)
-
+        self.update_settings({"exchange":{"name":exchange_name, "key":key, "secret":secret, "chart_id":len(self.settings['exchange'])}})
+        self.set_exchange(self.exchange)
 
         if not dpg.get_item_configuration('main-menu-bar')['show']:
             self.draw_menu()
             self.launch_charts()
         dpg.delete_item('settings-window')
+
+
+    def set_chart(self, chart_obj):
+        self.chart = chart_obj
+
+
+    def set_exchange(self, exchange):
+        self.chart.api = exchange
 
 
     def draw_menu(self):
